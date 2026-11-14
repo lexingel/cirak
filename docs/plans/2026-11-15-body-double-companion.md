@@ -40,7 +40,7 @@ Soru sıklığı (iki soru arasındaki en kısa süre): `low` 600 sn, `mid` 300 
 
 ---
 
-### Görev 1: Soru kapısı (ne zaman soru sorulur)
+### Task 1: Soru kapısı (ne zaman soru sorulur)
 
 **Dosyalar:**
 - Oluştur: `listener/gate.py`, `listener/tests/test_gate.py`, `.gitignore` (içinde `.superpowers/`, `__pycache__/`, `app/.godot/`), `listener/requirements.txt`
@@ -98,7 +98,7 @@ def test_level_mapping():
 - [ ] **Adım 4:** Aynı komutu çalıştır. Beklenen sonuç: 6 test geçer.
 - [ ] **Adım 5:** Commit: `feat(listener): question gate`
 
-### Görev 2: Görüşme ve hoparlör bekçisi
+### Task 2: Görüşme ve hoparlör bekçisi
 
 **Dosyalar:** Oluştur: `listener/mic_guard.py`, `listener/tests/test_mic_guard.py`
 
@@ -128,7 +128,7 @@ def test_self_not_counted():
 - [ ] **Adım 4:** Testler geçer. Ek olarak `python -c "import mic_guard; print(mic_guard.read_mic_entries())"` çalıştır. Beklenen sonuç: bir sözlük basılır, hata olmaz.
 - [ ] **Adım 5:** Commit: `feat(listener): call and speaker guard`
 
-### Görev 3: Soru üretici
+### Task 3: Soru üretici
 
 **Dosyalar:** Oluştur: `listener/asker.py`, `listener/tests/test_asker.py`
 
@@ -178,7 +178,7 @@ def test_fallback_list_shape():
 - [ ] **Adım 4:** Testler geçer.
 - [ ] **Adım 5:** Commit: `feat(listener): question asker with offline fallback`
 
-### Görev 4: Dinleyici süreci (mikrofon, Whisper, WebSocket)
+### Task 4: Dinleyici süreci (mikrofon, Whisper, WebSocket)
 
 **Dosyalar:** Oluştur: `listener/hearing.py`, `listener/main.py`
 
@@ -194,7 +194,7 @@ def test_fallback_list_shape():
 - [ ] **Adım 4:** Testlerin hepsi geçer (`python -m pytest listener/tests -v`).
 - [ ] **Adım 5:** Commit: `feat(listener): mic, whisper and websocket loop`
 
-### Görev 5: Godot uygulaması, pencere ve çırak
+### Task 5: Godot uygulaması, pencere ve çırak
 
 **Dosyalar:**
 - Oluştur: `app/project.godot`, `app/main.tscn`, `app/main.gd`, `app/apprentice.tscn`, `app/apprentice.gd`, `app/bubble.gd`, `app/art/apprentice.png` (geçici sprite), `app/tests/run_tests.gd`
@@ -234,7 +234,7 @@ func test_clamp_to_screen():
 - [ ] **Adım 5, elle kontrol:** `godot --path app` ile çalıştır. Çırak masaüstünde çerçevesiz görünür. Çırağın dışına tıklayınca alttaki pencere tıklanır. Çırak sürüklenebilir. Kapatıp açınca aynı yerde başlar. Ekran görüntüsü al.
 - [ ] **Adım 6:** Commit: `feat(app): frameless apprentice window`
 
-### Görev 6: Bağlantı (uygulama ↔ dinleyici)
+### Task 6: Bağlantı (uygulama ↔ dinleyici)
 
 **Dosyalar:** Oluştur: `app/link.gd`. Değiştir: `app/main.gd`, `app/tests/run_tests.gd`
 
@@ -258,7 +258,7 @@ func test_parse():
 - [ ] **Adım 5, elle kontrol:** `godot --path app` ile tek komutla aç. Konuşunca çırak başını kaldırır. Bir süre anlatınca balonda bir soru çıkar. Yazı kutusuna yazınca çırak baş sallar. Görüşmedeyken tepki vermez. Uygulamayı kapatınca `python` süreci de kapanır (Görev Yöneticisi'nden ya da `tasklist | grep python` ile kontrol edilir). Dinleyiciyi elle öldürünce çırak çalışmaya devam eder ve hata penceresi açılmaz (inceleme odağı 4).
 - [ ] **Adım 6:** Commit: `feat(app): link to listener`
 
-### Görev 7: Gerçek çırak sprite'ı
+### Task 7: Gerçek çırak sprite'ı
 
 **Dosyalar:** Değiştir: `app/art/apprentice.png`, `app/apprentice.tscn` (SpriteFrames)
 
