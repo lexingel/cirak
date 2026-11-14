@@ -2,6 +2,7 @@ extends SceneTree
 
 const ApprenticeScene = preload("res://apprentice.tscn")
 const MainScript = preload("res://main.gd")
+const LinkScript = preload("res://link.gd")
 
 var failures := 0
 
@@ -17,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -55,3 +56,10 @@ func test_clamp_to_screen() -> void:
 	check(MainScript.clamp_to_screen(Vector2i(3000, 50), Vector2i(260, 220), r) == Vector2i(1660, 50), "clamp right edge")
 	check(MainScript.clamp_to_screen(Vector2i(100, 100), Vector2i(260, 220), r) == Vector2i(100, 100), "inside unchanged")
 	check(MainScript.clamp_to_screen(Vector2i(-500, -40), Vector2i(260, 220), r) == Vector2i(0, 0), "clamp top-left")
+
+
+func test_parse() -> void:
+	check(LinkScript.parse('{"type":"question","text":"Ne var?"}').get("text") == "Ne var?", "parse question")
+	check(LinkScript.parse("bozuk{") == {}, "bad json -> empty")
+	check(LinkScript.parse('{"text":"tipsiz"}') == {}, "no type -> empty")
+	check(LinkScript.parse('[1,2]') == {}, "non-object -> empty")

@@ -59,6 +59,17 @@ func _ready() -> void:
 	mic_on = cfg.get_value("prefs", "mic", true)
 	level = cfg.get_value("prefs", "frequency", "mid")
 	_refresh_menu()
+
+	var link := Link.new()
+	add_child(link)
+	link.message.connect(apprentice.handle)
+	link.connected.connect(func():
+		link.send({"type": "mic", "on": mic_on})
+		link.send({"type": "frequency", "level": level}))
+	typed.connect(func(t): link.send({"type": "typed", "text": t}))
+	mic_changed.connect(func(on): link.send({"type": "mic", "on": on}))
+	frequency_changed.connect(func(l): link.send({"type": "frequency", "level": l}))
+
 	var win := get_window()
 	var screen := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	var default_pos := Vector2i(screen.end.x - 300, screen.end.y - 260)
