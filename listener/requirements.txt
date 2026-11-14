@@ -1,0 +1,8 @@
+faster-whisper
+sounddevice
+numpy
+websockets
+anthropic
+pycaw
+comtypes
+pytest
