@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -63,3 +63,25 @@ func test_parse() -> void:
 	check(LinkScript.parse("bozuk{") == {}, "bad json -> empty")
 	check(LinkScript.parse('{"text":"tipsiz"}') == {}, "no type -> empty")
 	check(LinkScript.parse('[1,2]') == {}, "non-object -> empty")
+
+
+func test_restore_on_second_monitor() -> void:
+	var screens := [Rect2i(0, 0, 2560, 1440), Rect2i(2560, 0, 1920, 1080)]
+	check(MainScript.restore_pos(Vector2i(3000, 500), Vector2i(260, 220), screens) == Vector2i(3000, 500), "stays on monitor 2")
+	check(MainScript.restore_pos(Vector2i(9000, 500), Vector2i(260, 220), screens) == Vector2i(2300, 500), "gone monitor -> pulled onto first")
+
+
+func test_click_polygon() -> void:
+	var sprite := Rect2(58, 76, 144, 144)
+	var only := MainScript.click_polygon(sprite, Rect2())
+	check(only.size() == 4, "sprite only: a box")
+	var poly := MainScript.click_polygon(sprite, Rect2(12, 4, 236, 50))
+	check(Geometry2D.is_point_in_polygon(Vector2(20, 20), poly), "bubble area catches clicks")
+	check(Geometry2D.is_point_in_polygon(Vector2(130, 150), poly), "sprite catches clicks")
+	check(not Geometry2D.is_point_in_polygon(Vector2(5, 210), poly), "empty corner passes through")
+
+
+func test_relaunch() -> void:
+	check(LinkScript.needs_relaunch(false, 12.0), "dead listener relaunched after backoff")
+	check(not LinkScript.needs_relaunch(false, 3.0), "not hammering")
+	check(not LinkScript.needs_relaunch(true, 60.0), "running listener left alone")

@@ -73,17 +73,36 @@ func _ready() -> void:
 	var win := get_window()
 	var screen := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	var default_pos := Vector2i(screen.end.x - 300, screen.end.y - 260)
-	win.position = clamp_to_screen(cfg.get_value("win", "pos", default_pos), win.size, _all_screens_rect(win.position))
+	var screens := []
+	for i in DisplayServer.get_screen_count():
+		screens.append(DisplayServer.screen_get_usable_rect(i))
+	win.position = restore_pos(cfg.get_value("win", "pos", default_pos), win.size, screens)
+	text_box.focus_exited.connect(_close_text_box)
 	_update_passthrough()
 
 
-func _all_screens_rect(near: Vector2i) -> Rect2i:
-	# ponytail: clamps to the screen nearest the saved spot's primary, not a true multi-monitor union
-	var idx := 0
-	for i in DisplayServer.get_screen_count():
-		if DisplayServer.screen_get_usable_rect(i).has_point(near):
-			idx = i
-	return DisplayServer.screen_get_usable_rect(idx)
+## Saved spot on a monitor that still exists -> keep it there; otherwise pull it onto the first screen.
+static func restore_pos(saved: Vector2i, size: Vector2i, screens: Array) -> Vector2i:
+	for r in screens:
+		if r.has_point(saved):
+			return clamp_to_screen(saved, size, r)
+	return clamp_to_screen(saved, size, screens[0])
+
+
+## Click area: the sprite, plus (when shown) a wider strip on top for the bubble / text box.
+static func click_polygon(sprite: Rect2, top: Rect2) -> PackedVector2Array:
+	var s := sprite
+	if not top.has_area():
+		return PackedVector2Array([s.position, Vector2(s.end.x, s.position.y), s.end, Vector2(s.position.x, s.end.y)])
+	var t := top
+	return PackedVector2Array([
+		t.position, Vector2(t.end.x, t.position.y), t.end, Vector2(s.end.x, t.end.y),
+		s.end, Vector2(s.position.x, s.end.y), Vector2(s.position.x, t.end.y), Vector2(t.position.x, t.end.y)])
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and text_box.visible:
+		_close_text_box()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -165,8 +184,10 @@ func _save() -> void:
 
 ## Clicks outside the apprentice (and the bubble / text box when open) fall through to the desktop.
 func _update_passthrough() -> void:
-	var r := apprentice.sprite_rect()
-	if text_box.visible or apprentice.bubble.visible:
-		r = Rect2(Vector2.ZERO, Vector2(get_window().size))
-	DisplayServer.window_set_mouse_passthrough(PackedVector2Array([
-		r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]))
+	var top := Rect2()
+	if apprentice.bubble.visible:
+		top = Rect2(apprentice.position + apprentice.bubble.position, apprentice.bubble.size)
+	if text_box.visible:
+		var box := Rect2(text_box.position, text_box.size)
+		top = box if not top.has_area() else top.merge(box)
+	DisplayServer.window_set_mouse_passthrough(click_polygon(apprentice.sprite_rect(), top))

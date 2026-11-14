@@ -7,11 +7,13 @@ signal connected
 
 const URL := "ws://127.0.0.1:47613"
 const RETRY_SECONDS := 2.0
+const RELAUNCH_SECONDS := 10.0  ## backoff, so a listener that keeps dying (no mic) is not hammered
 
 var _ws := WebSocketPeer.new()
 var _pid := -1
 var _retry := 0.0
 var _was_open := false
+var _since_launch := 0.0
 
 
 static func parse(text: String) -> Dictionary:
@@ -21,7 +23,16 @@ static func parse(text: String) -> Dictionary:
 	return j.data
 
 
+static func needs_relaunch(running: bool, seconds_since_launch: float) -> bool:
+	return not running and seconds_since_launch >= RELAUNCH_SECONDS
+
+
 func _ready() -> void:
+	_launch()
+
+
+func _launch() -> void:
+	_since_launch = 0.0
 	var listener := ProjectSettings.globalize_path("res://").path_join("../listener").simplify_path()
 	var py := listener.path_join(".venv/Scripts/pythonw.exe")
 	if not FileAccess.file_exists(py):
@@ -42,6 +53,9 @@ func _process(delta: float) -> void:
 				message.emit(msg)
 	elif st == WebSocketPeer.STATE_CLOSED:
 		_was_open = false
+		_since_launch += delta
+		if needs_relaunch(_pid > 0 and OS.is_process_running(_pid), _since_launch):
+			_launch()
 		_retry -= delta
 		if _retry <= 0.0:
 			_retry = RETRY_SECONDS
