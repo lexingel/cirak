@@ -15,6 +15,8 @@ from listener_core import Listener
 
 PORT = 47613
 IDLE_EXIT = 10  # seconds without the app -> quit, so no orphan mic stays open
+# Browsers always send an Origin header; the Godot app sends none. Only Origin-less clients may connect.
+SERVE_KW = {"origins": [None]}
 
 
 async def run():
@@ -28,7 +30,7 @@ async def run():
             loop.call_soon_threadsafe(asyncio.ensure_future, ws.send(data))
 
     core = Listener(send=send, transcribe=transcribe, ask=ask,
-                    call_busy=lambda: mic_guard.mic_in_use_by_other(mic_guard.read_mic_entries(), sys.executable),
+                    call_busy=lambda: mic_guard.mic_in_use_by_other(mic_guard.read_mic_entries(), mic_guard.own_exes()),
                     speaker_busy=mic_guard.speaker_busy)
 
     # Transcribing and asking are slow; one worker thread keeps them off the audio callback.
@@ -59,7 +61,7 @@ async def run():
         finally:
             clients.discard(ws)
 
-    async with websockets.serve(handler, "127.0.0.1", PORT):
+    async with websockets.serve(handler, "127.0.0.1", PORT, **SERVE_KW):
         idle = 0
         while True:
             await asyncio.sleep(1)

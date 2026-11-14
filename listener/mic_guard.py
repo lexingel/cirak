@@ -4,9 +4,25 @@ import winreg
 _STORE = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone"
 
 
-def mic_in_use_by_other(entries: dict[str, tuple[int, int]], self_exe: str) -> bool:
-    me = self_exe.replace("\\", "#").lower()
-    return any(start > 0 and stop == 0 and key.lower() != me for key, (start, stop) in entries.items())
+def _own_keys(self_exes) -> set[str]:
+    if isinstance(self_exes, str):
+        self_exes = [self_exes]
+    keys = set()
+    for exe in self_exes:
+        k = exe.replace("\\", "#").lower()
+        keys |= {k, k.replace("#python.exe", "#pythonw.exe"), k.replace("#pythonw.exe", "#python.exe")}
+    return keys
+
+
+def own_exes() -> list[str]:
+    """This process and, for a venv, the base interpreter that actually opens the mic."""
+    import sys
+    return [sys.executable, getattr(sys, "_base_executable", sys.executable)]
+
+
+def mic_in_use_by_other(entries: dict[str, tuple[int, int]], self_exes) -> bool:
+    mine = _own_keys(self_exes)
+    return any(start > 0 and stop == 0 and key.lower() not in mine for key, (start, stop) in entries.items())
 
 
 def _read_children(key) -> dict[str, tuple[int, int]]:

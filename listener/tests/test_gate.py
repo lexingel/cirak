@@ -44,3 +44,12 @@ def test_old_text_drops_out_of_window():
     g = QuestionGate(min_words=3)
     g.add_text("bir iki üç dört", now=0)
     assert not g.should_ask(now=400)  # older than 180 s window
+
+
+def test_short_utterances_do_not_add_up():
+    g = QuestionGate(min_words=8)
+    for i in range(4):
+        g.add_text("hmm tamam", now=i)
+    for i in range(8):
+        g.add_text("Teşekkürler.", now=10 + i)
+    assert not g.should_ask(now=400 - 300)  # within window, interval met from -inf

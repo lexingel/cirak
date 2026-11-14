@@ -11,6 +11,7 @@ class Listener:
         self.gate = QuestionGate()
         self.mic_on = True
         self.paused = False
+        self._heard = False
 
     @property
     def listening(self) -> bool:
@@ -27,15 +28,18 @@ class Listener:
             self.send({"type": "resumed"})
 
     def speech_start(self) -> None:
-        if self.listening:
+        # Speaker playing -> probably a video or music, not the user: don't even look up.
+        self._heard = self.listening and not self.speaker_busy()
+        if self._heard:
             self.send({"type": "speech_start"})
 
     def speech_end(self, audio) -> None:
-        if not self.listening:
+        if not (self.listening and self._heard) or self.speaker_busy():
+            if self._heard:
+                self.send({"type": "speech_end"})
+            self._heard = False
             return
-        if self.speaker_busy():  # probably a video or music, not the user
-            self.send({"type": "speech_end"})
-            return
+        self._heard = False
         text = self.transcribe(audio)
         self.send({"type": "speech_end"})
         self._narrate(text)

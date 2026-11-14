@@ -1,6 +1,7 @@
 """Decides when the apprentice may ask a question. Never when the user is silent."""
 
-HALLUCINATIONS = ("altyazı m.k", "izlediğiniz için teşekkür", "abone olmayı unutmayın", "altyazı")
+HALLUCINATIONS = ("altyazı m.k", "izlediğiniz için teşekkür", "abone olmayı unutmayın")
+MIN_UTTERANCE_WORDS = 3  # "hmm", "tamam", "Teşekkürler." on noise never count, even added up
 LEVELS = {"low": 600, "mid": 300, "high": 120}
 WINDOW = 180  # seconds of narration kept
 
@@ -14,7 +15,7 @@ class QuestionGate:
 
     def add_text(self, text: str, now: float) -> None:
         text = text.strip()
-        if not text or any(h in text.lower() for h in HALLUCINATIONS):
+        if len(text.split()) < MIN_UTTERANCE_WORDS or any(h in text.lower() for h in HALLUCINATIONS):
             return
         self._buf.append((now, text))
         self._trim(now)

@@ -58,3 +58,9 @@ def test_frequency_message_sets_interval():
     L, *_ = make()
     L.on_client({"type": "frequency", "level": "low"})
     assert L.gate.min_interval == 600
+
+
+def test_speaker_busy_does_not_even_look_up():
+    L, sent, *_ = make(speaker=True)
+    L.speech_start(); L.speech_end(LONG)
+    assert sent == []
