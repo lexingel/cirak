@@ -72,3 +72,21 @@ def test_mic_by_name_falls_back_to_default():
     assert device_index(DEVICES, "Mikrofon (USB 2.0 Camera)") == 2
     assert device_index(DEVICES, "unplugged mic") is None
     assert device_index(DEVICES, "") is None
+
+
+def test_gpu_failure_mid_transcribe_falls_back_to_cpu(monkeypatch):
+    import hearing
+    from types import SimpleNamespace as S
+
+    class Gpu:
+        def transcribe(self, *a, **k):
+            raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+
+    class Cpu:
+        def transcribe(self, *a, **k):
+            return iter([S(text=" what comes next", no_speech_prob=0.1, avg_logprob=-0.3)]), None
+
+    monkeypatch.setattr(hearing, "_model", None)
+    monkeypatch.setattr(hearing, "_load", lambda device: Gpu() if device == "cuda" else Cpu())
+    assert hearing.transcribe(np.zeros(16000, "float32")) == "what comes next"
+    assert hearing.transcribe(np.zeros(16000, "float32")) == "what comes next"  # stays on CPU

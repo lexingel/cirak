@@ -101,17 +101,34 @@ class Hearing:
 _model = None
 
 
-def transcribe(audio, lang: str = "en") -> str:
-    global _model
-    if _model is None:
-        from faster_whisper import WhisperModel
-        try:
-            _model = WhisperModel("small", device="cuda", compute_type="float16")
-        except Exception:
-            _model = WhisperModel("small", device="cpu", compute_type="int8")
+def _load(device: str):
+    from faster_whisper import WhisperModel
+    return WhisperModel("small", device=device, compute_type="float16" if device == "cuda" else "int8")
+
+
+def _run(audio, lang):
     segs, _ = _model.transcribe(audio, language=lang, vad_filter=True)
     # Drop segments Whisper itself thinks are not speech (where hallucinations come from).
     return " ".join(s.text.strip() for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0)
+
+
+def transcribe(audio, lang: str = "en") -> str:
+    global _model
+    if _model is None:
+        try:
+            _model = _load("cuda")
+        except Exception:
+            _model = _load("cpu")
+    try:
+        return _run(audio, lang)
+    except Exception as e:
+        # The GPU model can load and still fail on first use (a CUDA DLL missing): go CPU for good.
+        if getattr(_model, "_cpu", False):
+            raise
+        print("listener: GPU transcribe failed, using CPU:", e, file=__import__("sys").stderr)
+        _model = _load("cpu")
+        _model._cpu = True
+        return _run(audio, lang)
 
 
 if __name__ == "__main__":
