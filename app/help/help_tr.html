@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Çırak neler yapabilir?</title>
+<style>
+  :root { --bg: #f7f2e8; --ink: #2b2433; --muted: #6b6275; --accent: #5b3f8c; --card: #fffaf1; --line: #e3d8c4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1a24; --ink: #ece6f4; --muted: #a79fb3; --accent: #b99cf0; --card: #27222f; --line: #3a3345; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 28px; }
+  h2 { font-size: 19px; color: var(--accent); margin: 28px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin: 6px 0; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 14px "Segoe UI", sans-serif; background: var(--bg); }
+  .say { font-style: italic; }
+  .small { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Çırak neler yapabilir?</h1>
+  <p class="lead">Sen çalışırken yanında kazanını karıştıran küçük bir çırak. Ne yaptığını anlatırsan arada bir merakla soru sorar; sesli komutlarla müziği ve uygulamaları yönetir.</p>
+
+  <h2>Onunla nasıl konuşulur</h2>
+  <div class="card"><ul>
+    <li><b>Çalışırken anlat:</b> "Menüdeki butonları hizalıyorum" gibi. Çırak dinler, arada bir kısa bir soru sorar. Ne sıklıkla soracağını menüden seçersin.</li>
+    <li><b>Komut için tuşu basılı tut:</b> <kbd>Sağ Ctrl</kbd> (menüden değiştirilebilir) basılıyken söylediğin her şey komuttur. Müzik çalarken de çalışır.</li>
+    <li><b>Ortam sessizken:</b> "Çırak, …" diye başla, tuşa gerek yok.</li>
+    <li><b>Yazarak:</b> Çırağa tıkla, yaz, Enter'a bas. Komutlar yazınca da çalışır.</li>
+  </ul></div>
+
+  <h2>Komutlar</h2>
+  <div class="card"><ul>
+    <li><b>Müzik:</b> <span class="say">"sonraki şarkı", "önceki şarkı", "duraklat", "devam et"</span></li>
+    <li><b>Ses:</b> <span class="say">"sesi aç", "sesi kıs", "sessize al", "sesi geri aç"</span></li>
+    <li><b>Uygulama aç:</b> <span class="say">"Spotify'ı aç", "Discord'u başlat"</span>. Yalnızca listendeki uygulamalar açılır (menü: "Açabileceğim uygulamalar…").</li>
+    <li><b>Claude'a sor</b> (Claude Code kuruluysa): <span class="say">"Claude'a sor: Python'da liste nasıl sıralanır?"</span> Cevap balonda çıkar.</li>
+    <li><b>Claude'a iş ver:</b> <span class="say">"Claude'a iş ver: README'yi düzelt"</span>. Claude Code görev yazılı hâlde açılır; sen Enter'a basmadan gönderilmez.</li>
+  </ul></div>
+
+  <h2>Sağ tık menüsü</h2>
+  <div class="card"><ul>
+    <li><b>Mikrofon</b> aç/kapat ve hangi mikrofonun kullanılacağı</li>
+    <li><b>Soru sıklığı</b> ve <b>Dil</b> (Türkçe / English)</li>
+    <li><b>Çırak:</b> görünüm seç (Büyücü, Demirci, Şifacı, Katip, Okçu, Aşçı)</li>
+    <li><b>Soru modeli:</b> daha iyi sorular için Ollama modeli; boyutu ve farkı yanında yazar</li>
+    <li><b>Komut tuşu</b> ve <b>Açabileceğim uygulamalar</b></li>
+  </ul>
+  <p class="small">Sürükleyerek çırağı ekranda istediğin yere taşıyabilirsin. Görüntülü görüşmedeyken kendiliğinden susar.</p></div>
+
+  <h2>Gizlilik</h2>
+  <div class="card"><p style="margin:0">Söylediklerin bu bilgisayarda yazıya çevrilir ve hiçbir yere gönderilmez. Bilgisayardan çıkan tek şeyler: "Claude'a sor" sonrası cümle (kendi Claude girişinle), "Claude'a iş ver" görevi (sen Enter'a basınca) ve ilk açılıştaki model indirmeleri.</p></div>
+
+  <p class="small" style="margin-top:28px">Çırak açık kaynaklıdır: kod MIT, çizimler CC BY 4.0.</p>
+</main>
+</body>
+</html>

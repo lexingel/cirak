@@ -155,6 +155,9 @@ func test_command_menu() -> void:
 			var t: String = MainScript.model_label(l, i)
 			check(t.begins_with(MainScript.MODELS[i]) and t.contains("GB"), "%s model line %d names it, its size and a note" % [l, i])
 	check(MainScript.ui("tr", "mic_blocked").contains("Ayarlar"), "blocked mic line says where to fix it")
+	for l in ["en", "tr"]:
+		var page: String = MainScript.help_file(l)
+		check(page != "" and FileAccess.get_file_as_string(page).contains("<h1>"), "%s help page opens" % l)
 	check(MainScript.ui("en", "first_hint").contains("Right-click"), "first start tells where the menu is")
 	m.free()
 

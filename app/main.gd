@@ -24,6 +24,7 @@ const SKIN_ID := 9
 const BRAIN_ID := 10
 const MODEL_ID := 11
 const MICPERM_ID := 12
+const HELP_ID := 13
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
 const MODEL_NOTE := {
@@ -45,11 +46,11 @@ const TEXT := {
 		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
 		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)",
 		"no_ollama": "Better questions: get Ollama (free)...",
-		"no_model": "Better questions: download %s (%s)...", "model": "Question model",
+		"no_model": "Better questions: download %s (%s)...", "model": "Question model", "help": "What can you do?",
 		"mic_blocked": "Windows microphone permission is off: open Settings...",
 		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
-		"first_hint": "Right-click me for the microphone, language and more"},
+		"first_hint": "Right-click me for the microphone, language and what I can do"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
@@ -57,11 +58,11 @@ const TEXT := {
 		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
 		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)",
 		"no_ollama": "Daha iyi sorular: Ollama'yı indir (ücretsiz)...",
-		"no_model": "Daha iyi sorular: %s indir (%s)...", "model": "Soru modeli",
+		"no_model": "Daha iyi sorular: %s indir (%s)...", "model": "Soru modeli", "help": "Neler yapabilirsin?",
 		"mic_blocked": "Windows mikrofon izni kapalı: Ayarlar'ı aç...",
 		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
-		"first_hint": "Mikrofon, dil ve fazlası için bana sağ tıkla"},
+		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla"},
 }
 
 var apprentice: Apprentice
@@ -163,6 +164,7 @@ func _ready() -> void:
 	menu.add_submenu_node_item("", model_menu, MODEL_ID)
 	menu.add_item("", APPS_ID)
 	menu.add_item("", PTT_ID)
+	menu.add_item("", HELP_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -295,6 +297,10 @@ func _on_menu(id: int) -> void:
 		PTT_ID:
 			apprentice.handle({"type": "say", "text": ui(lang, "ptt_pick")})
 			pick_ptt_key.emit()  # the listener waits for the key and answers with "ptt_key"
+		HELP_ID:
+			var page := help_file(lang)
+			if page != "":
+				OS.shell_open(ProjectSettings.globalize_path(page))
 		MICPERM_ID:
 			OS.shell_open("ms-settings:privacy-microphone")  # the user turns it on; we never change it
 		BRAIN_ID:
@@ -352,6 +358,20 @@ static func brain_text(l: String, state: String, m: String) -> String:
 		var i := MODELS.find(m)
 		return ui(l, "no_model") % [m, MODEL_SIZE[i] if i >= 0 else "?"]
 	return "" if state == "ok" else ui(l, state)
+
+
+## The help page in the user's language, copied out of the exe so the browser can open it ("" if missing).
+static func help_file(l: String) -> String:
+	var html := FileAccess.get_file_as_string("res://help/help_%s.html" % ("tr" if l == "tr" else "en"))
+	if html.is_empty():
+		return ""
+	var out := "user://help_%s.html" % l
+	var f := FileAccess.open(out, FileAccess.WRITE)
+	if f == null:
+		return ""
+	f.store_string(html)
+	f.close()
+	return out
 
 
 ## "qwen2.5:3b · 2 GB · better Turkish; ..." for the Question model submenu.
@@ -454,6 +474,7 @@ func _refresh_menu() -> void:
 	if menu.get_item_index(MICPERM_ID) >= 0:
 		menu.set_item_text(menu.get_item_index(MICPERM_ID), ui(lang, "mic_blocked"))
 	menu.set_item_text(menu.get_item_index(MODEL_ID), ui(lang, "model"))
+	menu.set_item_text(menu.get_item_index(HELP_ID), ui(lang, "help"))
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
 		model_menu.set_item_checked(i, MODELS[i] == model)
