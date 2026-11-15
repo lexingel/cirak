@@ -4,6 +4,7 @@ App names are looked up in Windows' own app list (shell:AppsFolder), which holds
 (Spotify has no Start Menu shortcut) and desktop apps alike. Nothing said ever runs as a command:
 only a target written in apps.json can be launched.
 """
+import difflib
 import json
 import os
 import re
@@ -34,6 +35,8 @@ def load(path=FILE, idx=None) -> dict:
     """The user's list; written with the apps from SEED that exist here if there is none yet."""
     if not path.exists():
         idx = index() if idx is None else idx
+        if not idx:  # PowerShell blocked or slow: no seed now, try again next time
+            return {}
         path.parent.mkdir(parents=True, exist_ok=True)
         seed = {k: v for k, v in SEED.items() if v.lower() in idx}
         path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -48,19 +51,23 @@ def find(spoken: str, aliases: dict):
     """The apps.json target for what was said ("Spotify'ı", "discordu"), or None."""
     s = spoken.lower().strip()
     tries = [s, re.sub(r"'\w*$", "", s), re.sub(r"(y|n)?[ıiuüae]$", "", s)]
+    tries += [t.replace("ı", "i") for t in tries]  # Turkish I->ı made "IntelliJ" "ıntellij"
     for t in tries:
         if t in aliases:
             return aliases[t]
     hits = {v for k, v in aliases.items() if s.startswith(k)}
-    return hits.pop() if len(hits) == 1 else None
+    if len(hits) == 1:
+        return hits.pop()
+    close = difflib.get_close_matches(tries[1], list(aliases), n=1, cutoff=0.75)  # "spotifay"
+    return aliases[close[0]] if close else None
 
 
-def launch(target: str, idx=None) -> None:
-    if re.match(r"^[a-z]:\|^\\\\", target, re.I):  # a full path the user wrote into apps.json
-        os.startfile(target)
+def launch(target: str, idx=None, start=os.startfile) -> None:
+    if re.match(r"^[a-z]:\\|^\\\\", target, re.I):  # a full path the user wrote into apps.json
+        start(target)
         return
     idx = index() if idx is None else idx
-    os.startfile("shell:AppsFolder\\" + idx.get(target.lower(), target))
+    start("shell:AppsFolder\\" + idx.get(target.lower(), target))
 
 
 def edit(path=FILE) -> None:

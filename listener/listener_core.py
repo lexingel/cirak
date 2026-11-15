@@ -17,6 +17,7 @@ class Listener:
         self.mic_on = True
         self.paused = False
         self._heard = False
+        self._told_no_model = False
         self.lang = "en"
         self.device = ""  # chosen mic name, "" = Windows default
         self.ptt_vk = 0xA3  # push-to-talk key (Windows key code), Right Ctrl until the app sends its own
@@ -80,7 +81,17 @@ class Listener:
             return fn(audio, self.lang)
         except Exception as e:
             print("listener: transcribe failed:", e, file=__import__("sys").stderr)
+            if not self._told_no_model:  # once: no model (offline first start), no DLL, ...
+                self._told_no_model = True
+                self.say(commands.reply(self.lang, "no_model"))
             return None
+
+    def warm(self, silence, fresh: bool) -> None:
+        """Loads Whisper now, not on the first sentence. fresh: the model isn't downloaded yet."""
+        if fresh:
+            self.say(commands.reply(self.lang, "downloading"))
+        if self._hear(self.transcribe, silence) is not None and fresh:
+            self.say(commands.reply(self.lang, "ready"))
 
     def say(self, text: str) -> None:
         self.send({"type": "say", "text": text})

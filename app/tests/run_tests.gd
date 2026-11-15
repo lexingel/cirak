@@ -146,6 +146,8 @@ func test_command_menu() -> void:
 	check(MainScript.ui("tr", "apps").begins_with("Açabileceğim"), "app list menu text")
 	check(MainScript.ptt_label("en", "").contains("Right Ctrl"), "command key defaults to Right Ctrl")
 	check(MainScript.ptt_label("tr", "F8").contains("F8"), "command key line names the picked key")
+	check(MainScript.ui("tr", "no_ollama").contains("Ollama"), "menu says why questions come from the list")
+	check(MainScript.ui("en", "first_hint").contains("Right-click"), "first start tells where the menu is")
 	m.free()
 
 
@@ -160,6 +162,9 @@ func test_skins() -> void:
 		var icon: Texture2D = Apprentice.preview(s)
 		check(icon != null and icon.get_width() == Apprentice.FRAME, "look %s has a menu icon" % s)
 	check(Apprentice.preview("missing") != null, "a missing look falls back to the wizard's icon")
+	var a3 = new_apprentice()
+	a3.set_skin("missing")
+	check(a3.skin == "" and a3.sprite.sprite_frames.get_frame_count("working") >= 2, "a missing look is the wizard, never invisible")
 	check(MainScript.SKIN_NAMES["en"].size() == MainScript.SKINS.size(), "every look has an English name")
 	var a2 = new_apprentice()
 	a2.handle({"type": "speech_start"})

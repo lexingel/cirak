@@ -34,8 +34,8 @@ def _endpoint():
 
 def volume(action: str) -> None:
     ep = _endpoint()
-    if action == "mute":
-        ep.SetMute(1, None)
+    if action in ("mute", "unmute"):
+        ep.SetMute(int(action == "mute"), None)
         return
     level = ep.GetMasterVolumeLevelScalar() + (STEP if action == "up" else -STEP)
     ep.SetMute(0, None)

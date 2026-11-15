@@ -3,6 +3,7 @@ phrase are sent; the narration the apprentice heard before never leaves the PC."
 import os
 import shutil
 import subprocess
+import sys
 from urllib.parse import quote
 
 from paths import DATA
@@ -16,7 +17,7 @@ SYSTEM = {"en": "Answer in at most two short sentences.",
 def ask_cmd(exe: str, text: str, lang: str) -> list:
     # no tools at all: nothing to approve, nothing runs; --restricted skips user settings and hooks
     return [exe, "-p", text, "--output-format", "text", "--tools", "", "--restricted",
-            "--strict-mcp-config", "--no-session-persistence", "--max-turns", "1",
+            "--strict-mcp-config", "--no-session-persistence",
             "--append-system-prompt", SYSTEM.get(lang, SYSTEM["en"])]
 
 
@@ -34,10 +35,12 @@ def ask_claude(text: str, lang: str = "en", run=subprocess.run, which=shutil.whi
     try:
         r = run(ask_cmd(exe, text, lang), capture_output=True, text=True, encoding="utf-8",
                 timeout=120, cwd=str(DATA), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print("claude:", e, file=sys.stderr)
         return None
     out = (r.stdout or "").strip()
     if r.returncode != 0 or not out:
+        print("claude: exit", r.returncode, (r.stderr or "")[:300], file=sys.stderr)  # never the question
         return None
     ANSWER.write_text(out, encoding="utf-8")
     return short(out)

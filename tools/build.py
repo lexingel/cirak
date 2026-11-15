@@ -47,6 +47,11 @@ apprentice works (typing) meanwhile. Everything you say is turned into text on t
 - Hold Right Ctrl (or the key you pick in the menu) while speaking to give a command: "next song", "pause", "volume down",
   "open Spotify" (only apps on your list), "ask Claude: ..." (if Claude Code is installed).
   Turkish works too: "sonraki şarkı", "duraklat", "Spotify'ı aç", "Claude'a sor: ...".
+- "Apps I may open..." lists a spoken name and the app name (or a full exe path) for each app.
+- The command key is not seen while a window running as administrator is in front.
+- What leaves this PC: only the words after "ask Claude" (to Anthropic, with your own Claude login),
+  a "tell Claude" task (typed into your local Claude Code, sent when you press Enter) and the
+  one-time model download. Nothing else you say does.
 - Better questions (optional): install Ollama (ollama.com) and run `ollama pull qwen2.5:3b`.
   Without it the apprentice picks from a list of gentle questions.
 - A GPU is optional (CUDA 12 + cuDNN 9 are used if installed); otherwise it runs on the CPU.
@@ -96,14 +101,39 @@ def licenses(lib: Path) -> str:
         head = text.split("\n\n", 1)[0]
         get = lambda k: (re.search(rf"^{k}: (.+)$", head, re.M) or [None, ""])[1].strip()
         lic = get("License-Expression") or get("License")
-        if not lic or len(lic) > 60:
+        if not lic or len(lic) > 60 or lic.lower().startswith("copyright"):  # numpy: first line of its licence text
             lic = ", ".join(c.split(" :: ")[-1] for c in re.findall(r"^Classifier: License :: (.+)$", head, re.M)) or lic[:60]
         rows.append(f"{get('Name')} {get('Version')}: {lic}")
     return ("Third-party software in listener/lib and listener/python\n\n" + "\n".join(rows) +
             "\n\nPython: PSF License (listener/python/LICENSE.txt)\n"
-            "msvcp140*.dll: Microsoft Visual C++ Redistributable (redistributable files)\nGodot Engine: MIT (Cirak.exe)\n"
+            "msvcp140*.dll: Microsoft Visual C++ Redistributable (redistributable files)\n"
             "av (PyAV) bundles FFmpeg built with GPL parts (x264, x265); its sources: github.com/PyAV-Org/pyav-ffmpeg\n"
-            "Whisper 'small' model (downloaded on first run): MIT, Systran/faster-whisper-small\n")
+            "Whisper 'small' model (downloaded on first run): MIT, Systran/faster-whisper-small\n"
+            + GODOT_NOTICE)
+
+
+GODOT_NOTICE = """
+Godot Engine (Cirak.exe), MIT License:
+Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
+Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Godot's own third-party parts (FreeType, zlib, ...) are listed at godotengine.org/license.
+"""
 
 
 def main():
@@ -140,6 +170,13 @@ def main():
                     "--no-compile", "-r", str(src / "requirements.dist.txt"), "-c", str(src / "requirements.lock")],
                    check=True)
     shutil.rmtree(lib / "bin", ignore_errors=True)
+    for junk in lib.glob("*.whl"):  # pip leaves an empty numpy wheel behind
+        junk.unlink()
+
+    print("smoke test: the shipped Python imports everything (no mic opened)")
+    subprocess.run([str(OUT / "listener" / "python" / "python.exe"), "-c",  # paths come from the ._pth
+                    "import faster_whisper, ctranslate2, onnxruntime, av, sounddevice, pycaw, websockets, keys"],
+                   check=True)
 
     (OUT / "README.txt").write_text(README, encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", OUT / "LICENSE")

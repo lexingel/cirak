@@ -47,6 +47,9 @@ static func art_dir(skin: String) -> String:
 
 ## Swaps the look; the current pose keeps going in the new clothes.
 func set_skin(s: String) -> void:
+	if not s.is_empty() and strip(s, "working") == null:  # half-copied or removed look
+		push_warning("look '%s' has no art, using the wizard" % s)
+		s = ""
 	skin = s
 	sprite.sprite_frames = _load_frames()
 	_enter(state)

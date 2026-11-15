@@ -5,7 +5,8 @@ command). Only the text AFTER a "Claude'a sor" phrase is ever sent anywhere; nar
 """
 import re
 
-WAKE = re.compile(r"^(hey\s+)?(ç|c|ch)[ıi]ra(k|ğ|g)\w*\b|^(hey\s+)?apprentice\b")
+# "çırak", "çırağım", "Chirac" (Whisper); not "çıraklık", which is narration
+WAKE = re.compile(r"^(hey\s+)?(ç|c|ch)[ıi]ra(k|ğ|g|c)([ıi]m|[ıi]n)?\b|^(hey\s+)?apprentice\b")
 CLAUDE = r"(claude|klod|clod|klot|cloud|claud|cilau\s*de|klavd)\s*'?\s*(a|ya|e|ye)?"
 
 # order matters: Claude first (its text can contain anything), volume before "open" ("sesi aç")
@@ -14,6 +15,7 @@ RULES = [
     ("ask_claude", re.compile(rf"^ask\s+{CLAUDE}\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^{CLAUDE}\s+(iş\s+ver|yaptır|söyle)\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^tell\s+{CLAUDE}\s+(to\s+)?(?P<arg>.+)$")),
+    ("unmute", re.compile(r"\bsesi\s+geri\s+aç|\bsessizden\s+çık|\bunmute\b")),
     ("up", re.compile(r"\bsesi\s+(aç|yükselt|art[ıt]?ır)|\bvolume\s+up\b|\blouder\b|\bturn\s+it\s+up\b")),
     ("down", re.compile(r"\bsesi\s+(kıs|kız|azalt|düşür)|\bvolume\s+down\b|\bquieter\b|\bturn\s+it\s+down\b")),
     ("mute", re.compile(r"\bsessize\s+al\b|\bsesi\s+kapat\b|\bmute\b")),
@@ -25,19 +27,25 @@ RULES = [
     ("pause", re.compile(r"\b(duraklat|durdur|dur|sus|pause|stop)\b")),
     ("play", re.compile(r"\b(devam|oynat|çal|play|resume)\b")),
 ]
-MEDIA = {"up", "down", "mute", "prev", "next", "pause", "play"}
+MEDIA = {"unmute", "up", "down", "mute", "prev", "next", "pause", "play"}
 
 REPLIES = {
     "en": {"next": "Next song", "prev": "Previous song", "pause": "Paused", "play": "Playing",
            "up": "Louder", "down": "Quieter", "mute": "Muted", "unknown": "Sorry, I didn't get that",
            "opening": "Opening {}", "no_app": "{} isn't on my app list", "asking": "Asking Claude: {}",
            "no_claude": "I can't reach Claude", "task": "Claude is open, press Enter to send",
-           "ptt_set": "Command key: {}", "ptt_same": "Command key not changed"},
+           "ptt_set": "Command key: {}", "ptt_same": "Command key not changed", "unmute": "Sound on",
+           "cant_open": "I couldn't open {}", "ready": "Ready",
+           "downloading": "First start: downloading the speech model (~460 MB), you can type meanwhile",
+           "no_model": "I can't load the speech model; you can still type (details in listener.log)"},
     "tr": {"next": "Sonraki şarkı", "prev": "Önceki şarkı", "pause": "Duraklattım", "play": "Çalıyor",
            "up": "Sesi açtım", "down": "Sesi kıstım", "mute": "Sessize aldım", "unknown": "Anlamadım",
            "opening": "{} açılıyor", "no_app": "{} uygulama listemde yok", "asking": "Claude'a soruyorum: {}",
            "no_claude": "Claude'a ulaşamadım", "task": "Claude açıldı, göndermek için Enter'a bas",
-           "ptt_set": "Komut tuşu: {}", "ptt_same": "Komut tuşu değişmedi"},
+           "ptt_set": "Komut tuşu: {}", "ptt_same": "Komut tuşu değişmedi", "unmute": "Sesi geri açtım",
+           "cant_open": "{} açılamadı", "ready": "Hazırım",
+           "downloading": "İlk açılış: konuşma modeli iniyor (~460 MB), bu arada yazabilirsin",
+           "no_model": "Konuşma modeli yüklenemedi; yazarak devam edebilirsin (ayrıntı listener.log'da)"},
 }
 
 

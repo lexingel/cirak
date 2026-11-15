@@ -53,7 +53,11 @@ def make_actions(speaker_busy, spawn):
         target = apps.find(spoken, apps.load())
         if not target:
             return commands.reply(lang, "no_app", spoken.split("'")[0].capitalize())
-        apps.launch(target)
+        try:
+            apps.launch(target)
+        except OSError as e:  # gone from Windows' app list, or a wrong path in apps.json
+            print("listener: open", target, e, file=sys.stderr)
+            return commands.reply(lang, "cant_open", target)
         return commands.reply(lang, "opening", target)
 
     def do_ask(text, lang, say):
@@ -106,11 +110,18 @@ async def run():
                 print("listener:", e, file=sys.stderr)
 
     threading.Thread(target=worker, daemon=True).start()
-    work.put((lambda: transcribe(__import__("numpy").zeros(16000, "float32")), None))  # warm the model
-    warm = {"ok": False, "at": 0}
+    work.put((apps.index, None))  # PowerShell, up to 20 s: now, not when the first "open" waits on it
+    warm = {"ok": None, "at": 0, "whisper": False}  # ok: None until Ollama was tried once
 
     def warm_model():  # load the local model now, not on the first question; retried while Ollama boots
-        warm["ok"] = ask_local("warming up", "en") is not None
+        ok = ask_local("warming up", "en") is not None
+        if ok != warm["ok"]:
+            warm["ok"] = ok
+            send({"type": "brain", "local": ok})  # the menu says when questions come from the list
+
+    def warm_whisper():  # after the app sent its language: the first-run bubbles must reach it, in its words
+        fresh = not any((DATA / "models").glob("models--Systran--faster-whisper-small/snapshots/*/model.bin"))
+        core.warm(__import__("numpy").zeros(16000, "float32"), fresh)
 
     work.put((warm_model, None))
     def make_hearing():
@@ -142,6 +153,8 @@ async def run():
             await ws.send(json.dumps({"type": "mics", "list": input_mics(sd.query_devices())}, ensure_ascii=False))
         except Exception as e:
             print("listener: mic list:", e, file=sys.stderr)
+        if warm["ok"] is not None:
+            await ws.send(json.dumps({"type": "brain", "local": warm["ok"]}))
         try:
             async for raw in ws:
                 try:
@@ -157,6 +170,9 @@ async def run():
                     threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
                     continue
                 work.put((core.on_client, msg))
+                if isinstance(msg, dict) and msg.get("type") == "lang" and not warm["whisper"]:
+                    warm["whisper"] = True
+                    work.put((warm_whisper, None))
         except websockets.ConnectionClosed:
             pass  # the app closing without a goodbye is normal, not a log entry
         finally:
@@ -168,7 +184,7 @@ async def run():
             await asyncio.sleep(1)
             work.put((core.tick, None))
             warm["at"] += 1
-            if not warm["ok"] and warm["at"] % 60 == 0:
+            if warm["ok"] is False and warm["at"] % 60 == 0:
                 work.put((warm_model, None))
             want = core.listening
             if core.device != device:  # the user picked another mic in the menu
@@ -189,4 +205,9 @@ async def run():
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except OSError as e:
+        if getattr(e, "winerror", None) != 10048:
+            raise
+        print("listener: already running (port", PORT, "in use)", file=sys.stderr)  # the app talks to that one

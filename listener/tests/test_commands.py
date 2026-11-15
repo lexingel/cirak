@@ -59,3 +59,13 @@ def test_whisper_spellings_heard_in_tests():
     assert c.parse("Claude Asor, Hüttponda liste nasıl sıralanır?", ptt=True)[0] == "ask_claude"
     assert c.parse("Cilau de Aşor, liste nasıl sıralanır", ptt=True)[0] == "unknown"  # too mangled; fine
     assert c.parse("Çırak, sesi kız.") == ("media", "down")
+
+
+def test_wake_word_is_a_word_not_a_prefix():
+    assert c.parse("çıraklık dönemimde böyle yapardık") is None
+    assert c.parse("Chirac, duraklat") == ("media", "pause")  # Whisper's usual spelling
+
+
+def test_unmute():
+    for t in ("sesi geri aç", "sessizden çık", "unmute"):
+        assert c.parse(t, ptt=True) == ("media", "unmute"), t

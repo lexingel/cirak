@@ -162,7 +162,23 @@ def test_transcription_failure_never_leaves_listening_stuck():
     L, sent, done = make_cmd()
     L.transcribe = L.transcribe_cmd = lambda a, lang: 1 / 0
     L.speech_start(); L.speech_end("x")
-    assert types(sent) == ["speech_start", "speech_end"]
+    assert types(sent) == ["speech_start", "say", "speech_end"]  # told once why it can't hear
     sent.clear()
     L.ptt_start(); L.ptt_end("x")
     assert types(sent) == ["speech_start", "speech_end"]
+
+
+def test_first_run_says_download_then_ready():
+    L, sent, _, _ = make()
+    L.lang = "tr"
+    L.warm("silence", fresh=True)
+    assert [m["text"] for m in sent] == ["İlk açılış: konuşma modeli iniyor (~460 MB), bu arada yazabilirsin", "Hazırım"]
+
+
+def test_warm_with_model_present_is_silent_and_failure_is_told():
+    L, sent, _, _ = make()
+    L.warm("silence", fresh=False)
+    assert sent == []
+    L.transcribe = lambda a, lang: 1 / 0
+    L.warm("silence", fresh=True)
+    assert [m["text"] for m in sent][-1].startswith("I can't load the speech model")

@@ -19,6 +19,7 @@ const MIC_ID := 6
 const APPS_ID := 7
 const PTT_ID := 8
 const SKIN_ID := 9
+const BRAIN_ID := 10
 const SKINS := ["", "demirci", "sifaci", "katip", "okcu", "asci"]  ## "" = the wizard
 const SKIN_NAMES := {
 	"en": ["Wizard", "Blacksmith", "Healer", "Scribe", "Archer", "Cook"],
@@ -30,13 +31,17 @@ const TEXT := {
 		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
 		"microphone": "Microphone", "default_mic": "Windows default",
 		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
-		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)"},
+		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)",
+		"no_ollama": "Questions from a list (Ollama not installed)",
+		"first_hint": "Right-click me for the microphone, language and more"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
 		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
 		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
-		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)"},
+		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)",
+		"no_ollama": "Sorular listeden (Ollama kurulu değil)",
+		"first_hint": "Mikrofon, dil ve fazlası için bana sağ tıkla"},
 }
 
 var apprentice: Apprentice
@@ -270,6 +275,12 @@ func _on_link_message(msg: Dictionary) -> void:
 		"mics":
 			mics = msg.get("list", [])
 			_refresh_menu()
+			if not cfg.get_value("prefs", "hinted", false):  # once ever: where the menu is
+				cfg.set_value("prefs", "hinted", true)
+				_save()
+				apprentice.handle({"type": "say", "text": ui(lang, "first_hint")})
+		"brain":
+			_set_brain(bool(msg.get("local", true)))
 		"ptt_key":
 			ptt_vk = int(msg.get("vk", 0xA3))  # JSON numbers arrive as floats
 			ptt_name = str(msg.get("name", ""))
@@ -290,6 +301,18 @@ func _set_paused(who) -> void:
 		menu.set_item_disabled(idx, true)
 		menu.set_item_index(idx, 0)
 	_refresh_menu()
+
+
+## Greyed menu line while questions come from the built-in list (no Ollama): a reason, not a choice.
+func _set_brain(local: bool) -> void:
+	var idx := menu.get_item_index(BRAIN_ID)
+	if local:
+		if idx >= 0:
+			menu.remove_item(idx)
+		return
+	if idx < 0:
+		menu.add_item(ui(lang, "no_ollama"), BRAIN_ID)
+		menu.set_item_disabled(menu.get_item_index(BRAIN_ID), true)
 
 
 func _mic_names() -> Array:
@@ -353,6 +376,8 @@ func _refresh_menu() -> void:
 	text_box.placeholder_text = ui(lang, "placeholder")
 	if paused_by != null:
 		menu.set_item_text(menu.get_item_index(PAUSE_ID), pause_text(lang, paused_by))
+	if menu.get_item_index(BRAIN_ID) >= 0:
+		menu.set_item_text(menu.get_item_index(BRAIN_ID), ui(lang, "no_ollama"))
 
 
 func _save() -> void:
