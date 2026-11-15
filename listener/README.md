@@ -8,7 +8,7 @@ Setup on a new PC:
 2. First run downloads the Whisper `small` model (~460 MB) into `%LOCALAPPDATA%\Cirak\models` (the apprentice says so);
    without internet it says it can't load the model, and typing still works.
 3. Optional: install Ollama; the app's menu then offers to download `qwen2.5:1.5b` (~1 GB, Apache 2.0;
-   `CIRAK_MODEL` picks another). Without it questions come from the built-in list.
+   another model: put its name in `%LOCALAPPDATA%\Cirak\model.txt`). Without it questions come from the built-in list.
 4. Whisper uses the GPU only if CUDA 12 cuBLAS is found; otherwise it runs on the CPU (~2 s per 8 s of speech).
 
 Tools: `python hearing.py` prints 10 s of mic levels; `python ../tools/fake_listener.py` plays the apprentice's scenes without a mic. Errors (never what you said) go to `listener.log`.

@@ -102,13 +102,13 @@ def test_brain_state_tells_missing_ollama_from_missing_model(monkeypatch):
     assert asker.brain_state() == "no_ollama"
     _fake_open(monkeypatch, b'{"models": [{"name": "llama3.2:3b"}]}')
     assert asker.brain_state() == "no_model"
-    _fake_open(monkeypatch, b'{"models": [{"name": "%s"}]}' % asker.LOCAL_MODEL.encode())
+    _fake_open(monkeypatch, b'{"models": [{"name": "%s"}]}' % asker.LOCAL_MODEL.encode())  # whichever this PC uses
     assert asker.brain_state() == "ok"
 
 
 def test_default_model_has_a_free_licence():
     import asker
-    assert asker.LOCAL_MODEL == "qwen2.5:1.5b" or "CIRAK_MODEL" in __import__("os").environ  # Apache 2.0; 3b is research-only
+    assert asker.DEFAULT_MODEL == "qwen2.5:1.5b"  # Apache 2.0; 3b is research-only
 
 
 def test_pull_reports_progress_in_quarters(monkeypatch):
@@ -122,3 +122,11 @@ def test_pull_reports_progress_in_quarters(monkeypatch):
     assert seen == [25, 75]
     _fake_open(monkeypatch, OSError("no network"))
     assert asker.pull(seen.append) is False
+
+
+def test_model_file_overrides_the_default(tmp_path):
+    import asker
+    f = tmp_path / "model.txt"
+    assert asker.model_name(f) == "qwen2.5:1.5b"
+    f.write_text(" qwen2.5:3b\n", encoding="utf-8")
+    assert asker.model_name(f) == "qwen2.5:3b"

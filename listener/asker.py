@@ -11,8 +11,21 @@ import urllib.request
 
 OLLAMA = "http://127.0.0.1:11434"
 LOCAL_URL = OLLAMA + "/api/chat"
-# Apache 2.0 (qwen2.5:3b is research-only, not for an open-source default); ~1 GB
-LOCAL_MODEL = os.environ.get("CIRAK_MODEL", "qwen2.5:1.5b")
+DEFAULT_MODEL = "qwen2.5:1.5b"  # Apache 2.0, ~1 GB (qwen2.5:3b asks better in Turkish but is research-only)
+
+
+def model_name(f=None) -> str:
+    """%LOCALAPPDATA%\\Cirak\\model.txt (one Ollama model name) beats CIRAK_MODEL beats the default."""
+    if f is None:
+        from paths import DATA
+        f = DATA / "model.txt"
+    try:
+        return f.read_text(encoding="utf-8").strip() or DEFAULT_MODEL
+    except OSError:
+        return os.environ.get("CIRAK_MODEL", DEFAULT_MODEL)
+
+
+LOCAL_MODEL = model_name()
 HAIKU = "claude-haiku-5-5"
 MAX_WORDS = 15
 KEEP_ALIVE = "2h"  # ponytail: holds ~1 GB (V)RAM while idle; after 2h silence the first question uses the list
