@@ -1,0 +1,150 @@
+# Tests on every push; on a v* tag (or by hand) builds the release, signs it through SignPath once
+# the project is approved (repository variable SIGNPATH_ORGANIZATION_ID set) and publishes it.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+  GODOT: ${{ github.workspace }}\godot\Godot_v4.7.2-stable_win64.exe
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # the release on a tag
+      actions: read     # SignPath reads the uploaded artifact
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # must match the embedded Python 3.12 in tools/build.py
+
+      - name: Godot and export templates (checked against Godot's SHA512-SUMS)
+        shell: pwsh
+        run: |
+          $base = "https://github.com/godotengine/godot/releases/download/$env:GODOT_VERSION"
+          $files = "Godot_v$($env:GODOT_VERSION)_win64.exe.zip", "Godot_v$($env:GODOT_VERSION)_export_templates.tpz"
+          New-Item -ItemType Directory -Force godot | Out-Null
+          Invoke-WebRequest "$base/SHA512-SUMS.txt" -OutFile godot/SHA512-SUMS.txt
+          foreach ($f in $files) {
+            Invoke-WebRequest "$base/$f" -OutFile "godot/$f"
+            $want = (Select-String -Path godot/SHA512-SUMS.txt -Pattern ([regex]::Escape($f)) | Select-Object -First 1).Line.Split(" ")[0]
+            $got = (Get-FileHash "godot/$f" -Algorithm SHA512).Hash
+            if ($got -ne $want) { throw "$f checksum mismatch" }
+          }
+          Expand-Archive "godot/$($files[0])" -DestinationPath godot
+          $tpl = "$env:APPDATA\Godot\export_templates\$($env:GODOT_VERSION -replace '-', '.')"
+          Expand-Archive "godot/$($files[1])" -DestinationPath godot/tpl
+          New-Item -ItemType Directory -Force $tpl | Out-Null
+          Copy-Item godot/tpl/templates/* $tpl
+
+      - name: Listener tests
+        working-directory: listener
+        run: |
+          python -m pip install -q -r requirements.lock pytest
+          python -m pytest -q tests
+
+      - name: App tests
+        shell: pwsh
+        run: |
+          & $env:GODOT --headless --path app --import
+          $out = & $env:GODOT --headless --path app -s tests/run_tests.gd 2>&1 | Out-String
+          Write-Output $out
+          if ($out -notmatch "failures: 0" -or $out -match "SCRIPT ERROR") { throw "app tests failed" }
+
+      - name: Build the app folder
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        run: python tools/build.py --folder-only
+
+      # ---- signing (skipped until SignPath approves the project) ----
+      - name: Upload Cirak.exe for signing
+        id: exe
+        if: (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: exe-unsigned
+          path: dist/Cirak/Cirak.exe
+
+      - name: Sign Cirak.exe
+        if: steps.exe.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cirak
+          signing-policy-slug: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-signing' }}
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-exe
+
+      - name: Use the signed exe
+        if: steps.exe.outcome == 'success'
+        shell: pwsh
+        run: Copy-Item signed-exe/Cirak.exe dist/Cirak/Cirak.exe -Force
+
+      - name: Zip and installer
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $env:ISCC = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $env:ISCC)) { choco install innosetup -y --no-progress }
+          python tools/build.py --package-only
+
+      - name: Upload the installer for signing
+        id: setup
+        if: steps.exe.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-unsigned
+          path: dist/*-setup.exe
+
+      - name: Sign the installer
+        if: steps.setup.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cirak
+          signing-policy-slug: ${{ startsWith(github.ref, 'refs/tags/v') && 'release-signing' || 'test-signing' }}
+          artifact-configuration-slug: setup
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-setup
+
+      - name: Use the signed installer
+        if: steps.setup.outcome == 'success'
+        shell: pwsh
+        run: Copy-Item signed-setup/*-setup.exe dist/ -Force
+      # ---- end of signing ----
+
+      - name: Keep the build
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cirak-release
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $files = (Get-ChildItem dist/*.zip, dist/*-setup.exe).FullName
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { gh release upload $tag $files --clobber }
+          else { gh release create $tag $files --title "Çırak $tag" --generate-notes }

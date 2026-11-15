@@ -35,6 +35,8 @@ geçer, sesi kısar, uygulama açar ya da Claude'a soru sorar. Söylediklerin bi
 - `listener/`: the Python 3.12 listener (Whisper, commands, Ollama); see `listener/README.md`
 - `tools/build.py`: release folder, zip and Inno Setup installer
 
+Releases are built by GitHub Actions; see [CODE_SIGNING.md](CODE_SIGNING.md) for how they are signed.
+
 ## Licence
 
 Code: MIT ([LICENSE](LICENSE)). Drawings in `app/art/`: CC BY 4.0

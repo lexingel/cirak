@@ -160,7 +160,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--godot", default=os.environ.get("GODOT"), help="Godot 4.7 executable")
     ap.add_argument("--no-zip", action="store_true")
+    # CI signs Cirak.exe between the two halves, so the zip and the installer carry the signed exe
+    ap.add_argument("--folder-only", action="store_true", help="dist/Cirak only, no zip or installer")
+    ap.add_argument("--package-only", action="store_true", help="zip + installer from an existing dist/Cirak")
     o = ap.parse_args()
+    if not o.package_only:
+        build_folder(o)
+    if not o.folder_only:
+        package(o.no_zip)
+
+
+def build_folder(o):
     if sys.version_info[:2] != (3, 12):
         sys.exit("run this with the listener venv's Python 3.12 (packages must match the shipped Python)")
     if not o.godot or not Path(o.godot).exists():
@@ -206,7 +216,12 @@ def main():
 
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6
     print(f"dist/Cirak: {size:.0f} MB")
-    if not o.no_zip:
+
+
+def package(no_zip=False):
+    if not (OUT / "Cirak.exe").exists():
+        sys.exit("no dist/Cirak/Cirak.exe: build the folder first")
+    if not no_zip:
         z = DIST / f"Cirak-{version()}-win64"
         shutil.make_archive(str(z), "zip", DIST, "Cirak")
         print(f"{z.name}.zip: {Path(str(z) + '.zip').stat().st_size / 1e6:.0f} MB")
