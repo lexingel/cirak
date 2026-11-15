@@ -1,4 +1,5 @@
-The apprentice look drawings in this folder (asci, demirci, katip, okcu, sifaci) are
+The apprentice drawings in this folder and its subfolders (the default wizard and the looks in
+skins/: asci, demirci, katip, okcu, sifaci) are
 Copyright (c) 2026 Çırak contributors and licensed under the
 Creative Commons Attribution 4.0 International License (CC BY 4.0):
 https://creativecommons.org/licenses/by/4.0/

@@ -180,7 +180,7 @@ def main():
 
     (OUT / "README.txt").write_text(README, encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", OUT / "LICENSE")
-    shutil.copy2(ROOT / "app" / "art" / "skins" / "LICENSE.txt", OUT / "ART-LICENSE.txt")  # looks: CC BY 4.0
+    shutil.copy2(ROOT / "app" / "art" / "LICENSE.txt", OUT / "ART-LICENSE.txt")  # drawings: CC BY 4.0
     (OUT / "LICENSES.txt").write_text(licenses(lib), encoding="utf-8")
 
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6

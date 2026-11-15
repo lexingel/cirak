@@ -21,5 +21,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---
-The apprentice look drawings in app/art/skins/ are not covered by the MIT License above:
-they are CC BY 4.0, see app/art/skins/LICENSE.txt (ART-LICENSE.txt in the release zip).
+The apprentice drawings in app/art/ (the wizard and the looks) are not covered by the MIT License above:
+they are CC BY 4.0, see app/art/LICENSE.txt (ART-LICENSE.txt in the release zip).
