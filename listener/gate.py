@@ -3,8 +3,14 @@
 HALLUCINATIONS = ("altyazı m.k", "izlediğiniz için teşekkür", "abone olmayı unutmayın",
                   "thank you for watching", "thanks for watching", "subtitles by", "please subscribe")
 MIN_UTTERANCE_WORDS = 3  # "hmm", "tamam", "Teşekkürler." on noise never count, even added up
-LEVELS = {"low": 600, "mid": 300, "high": 120}
+LEVELS = {"off": float("inf"), "low": 600, "mid": 300, "high": 120}  # off: listens, never asks
 WINDOW = 180  # seconds of narration kept
+
+
+def worth_keeping(text: str) -> bool:
+    """Real narration, not "hmm" or a Whisper hallucination on noise."""
+    text = text.strip()
+    return len(text.split()) >= MIN_UTTERANCE_WORDS and not any(h in text.lower() for h in HALLUCINATIONS)
 
 
 class QuestionGate:
@@ -15,10 +21,9 @@ class QuestionGate:
         self._last_asked = float("-inf")
 
     def add_text(self, text: str, now: float) -> None:
-        text = text.strip()
-        if len(text.split()) < MIN_UTTERANCE_WORDS or any(h in text.lower() for h in HALLUCINATIONS):
+        if not worth_keeping(text):
             return
-        self._buf.append((now, text))
+        self._buf.append((now, text.strip()))
         self._trim(now)
 
     def _trim(self, now: float) -> None:
@@ -27,6 +32,8 @@ class QuestionGate:
     def should_ask(self, now: float) -> bool:
         self._trim(now)
         words = sum(len(s.split()) for _, s in self._buf)
+        if self.min_interval == float("inf"):  # "never": -inf to now is inf too, so check it here
+            return False
         return words >= self.min_words and now - self._last_asked >= self.min_interval
 
     def context(self) -> str:

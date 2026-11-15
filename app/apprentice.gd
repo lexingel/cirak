@@ -22,6 +22,7 @@ var skin := ""  ## set before _ready (or via set_skin) to start in another look
 var sprite := AnimatedSprite2D.new()
 var bubble := Bubble.new()
 var toss_timer := Timer.new()
+var calm := false  ## menu "Calm apprentice": stirs slowly, never tosses
 
 
 func _ready() -> void:
@@ -132,7 +133,7 @@ func sprite_rect() -> Rect2:
 
 ## Plays the toss once if the apprentice is just stirring. Returns whether it started.
 func toss() -> bool:
-	if state != State.WORKING or sprite.animation != ANIMS[State.WORKING][0]:
+	if calm or state != State.WORKING or sprite.animation != ANIMS[State.WORKING][0]:
 		return false
 	sprite.play(TOSS[0])
 	return true
@@ -146,7 +147,7 @@ func _on_toss_timer() -> void:
 ## Each stir at a slightly different pace, so it never ticks like a metronome.
 func _on_loop() -> void:
 	if sprite.animation == ANIMS[State.WORKING][0]:
-		sprite.speed_scale = randf_range(0.9, 1.1)
+		sprite.speed_scale = 0.7 if calm else randf_range(0.9, 1.1)
 
 
 func _enter(s: State) -> void:

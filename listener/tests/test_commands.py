@@ -77,3 +77,11 @@ def test_hide_and_show():
     for t in ["Çırak, geri gel", "Apprentice, come back", "çırak ortaya çık"]:
         assert c.parse(t) == ("show", ""), t
     assert c.parse("apprentice go back") == ("media", "prev")  # "come back" only, not "back"
+
+
+def test_start_and_recall():
+    for t in ["Çırak, başlıyorum", "çırak başlayalım", "Apprentice, let's start", "apprentice I'm starting"]:
+        assert c.parse(t) == ("start", ""), t
+    for t in ["Çırak, neredeydim?", "çırak nerede kalmıştık", "Apprentice, where was I?", "apprentice what was I doing"]:
+        assert c.parse(t) == ("recall", ""), t
+    assert c.parse("apprentice start Spotify") == ("open", "spotify")

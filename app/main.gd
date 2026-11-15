@@ -14,7 +14,7 @@ signal model_picked(name: String)
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
-const LEVELS := ["low", "mid", "high"]
+const LEVELS := ["off", "low", "mid", "high"]  ## "off": listens, never asks
 const LANGS := ["en", "tr"]
 const PAUSE_ID := 5
 const MIC_ID := 6
@@ -27,6 +27,7 @@ const MICPERM_ID := 12
 const HELP_ID := 13
 const HIDE_ID := 14
 const HIDE_SECONDS := 3600
+const CALM_ID := 15
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
 const MODEL_NOTE := {
@@ -42,7 +43,7 @@ const SKIN_NAMES := {
 }
 const TEXT := {
 	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
-		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
+		"off": "Never (just listen)", "low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
 		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
 		"microphone": "Microphone", "default_mic": "Windows default",
 		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
@@ -53,9 +54,10 @@ const TEXT := {
 		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
 		"first_hint": "Right-click me for the microphone, language and what I can do",
-		"hide": "Hide for an hour (say \"Apprentice, come back\")"},
+		"hide": "Hide for an hour (say \"Apprentice, come back\")",
+		"calm": "Calm apprentice (no tossing)"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
-		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
+		"off": "Hiç (sadece dinle)", "low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
 		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
 		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
@@ -66,7 +68,8 @@ const TEXT := {
 		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
 		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla",
-		"hide": "1 saat saklan (\"Çırak, geri gel\" de)"},
+		"hide": "1 saat saklan (\"Çırak, geri gel\" de)",
+		"calm": "Sakin çırak (malzeme atmaz)"},
 }
 
 var apprentice: Apprentice
@@ -132,6 +135,7 @@ func _ready() -> void:
 		skin = ""
 	apprentice = preload("res://apprentice.tscn").instantiate()
 	apprentice.skin = skin
+	apprentice.calm = cfg.get_value("prefs", "calm", false)
 	apprentice.position = Vector2(130, 220 - 72)
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
@@ -173,6 +177,7 @@ func _ready() -> void:
 	menu.add_item("", PTT_ID)
 	menu.add_item("", HELP_ID)
 	menu.add_item("", HIDE_ID)
+	menu.add_check_item("", CALM_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -309,6 +314,10 @@ func _on_menu(id: int) -> void:
 			var page := help_file(lang)
 			if page != "":
 				OS.shell_open(ProjectSettings.globalize_path(page))
+		CALM_ID:
+			apprentice.calm = not apprentice.calm
+			_save()
+			_refresh_menu()
 		HIDE_ID:
 			_hide_for(HIDE_SECONDS)
 		MICPERM_ID:
@@ -497,6 +506,8 @@ func _refresh_menu() -> void:
 	menu.set_item_text(menu.get_item_index(MODEL_ID), ui(lang, "model"))
 	menu.set_item_text(menu.get_item_index(HELP_ID), ui(lang, "help"))
 	menu.set_item_text(menu.get_item_index(HIDE_ID), ui(lang, "hide"))
+	menu.set_item_text(menu.get_item_index(CALM_ID), ui(lang, "calm"))
+	menu.set_item_checked(menu.get_item_index(CALM_ID), apprentice.calm)
 	queue_redraw()  # the mic dot
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
@@ -510,6 +521,7 @@ func _save() -> void:
 	cfg.set_value("prefs", "lang", lang)
 	cfg.set_value("prefs", "mic_device", mic_device)
 	cfg.set_value("prefs", "skin", skin)
+	cfg.set_value("prefs", "calm", apprentice.calm)
 	cfg.set_value("prefs", "ptt_vk", ptt_vk)
 	cfg.set_value("prefs", "ptt_name", ptt_name)
 	cfg.save(SETTINGS)

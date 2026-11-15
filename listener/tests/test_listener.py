@@ -182,3 +182,45 @@ def test_warm_with_model_present_is_silent_and_failure_is_told():
     L.transcribe = lambda a, lang: 1 / 0
     L.warm("silence", fresh=True)
     assert [m["text"] for m in sent][-1].startswith("I can't load the speech model")
+
+
+def test_start_asks_a_fresh_opening_each_time():
+    L, sent, _, _ = make()
+    L.lang = "en"
+    seen = []
+    for _ in range(4):
+        L.on_client({"type": "typed", "text": "Apprentice, let's start"})
+        seen.append(sent[-1]["text"])
+        assert sent[-1]["type"] == "question"
+    assert len(set(seen)) == 4  # never one of the last three again
+    L.on_client({"type": "typed", "text": "Çırak, başlıyorum"})
+    assert sent[-1]["type"] == "question"
+
+
+def test_where_was_i_quotes_the_last_two_things_said():
+    L, sent, _, _ = make()
+    L.lang = "en"
+    L.on_client({"type": "typed", "text": "Apprentice, where was I?"})
+    assert "haven't heard" in sent[-1]["text"]
+    for s in ["I'm sorting the invoices by month", "now the March pile looks wrong", "ok"]:
+        L.on_client({"type": "typed", "text": s})
+    L.on_client({"type": "typed", "text": "Apprentice, where was I"})
+    t = sent[-1]["text"]
+    assert sent[-1]["type"] == "say" and "invoices by month" in t and "March pile" in t
+    assert "“ok" not in t  # too short to count as narration
+
+
+def test_recall_buffer_is_small_and_in_memory_only():
+    L, _, _, _ = make()
+    for i in range(30):
+        L.on_client({"type": "typed", "text": f"step number {i} of the plan"})
+    assert len(L.recent) == 10 and L.recent[-1] == "step number 29 of the plan"
+
+
+def test_never_level_never_asks():
+    L, sent, _, clock = make()
+    L.on_client({"type": "frequency", "level": "off"})
+    for _ in range(5):
+        L.on_client({"type": "typed", "text": LONG})
+        clock[0] += 10000
+    assert "question" not in types(sent)

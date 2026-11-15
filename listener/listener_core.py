@@ -1,8 +1,10 @@
 """Listener logic, free of audio and network so it can be tested."""
+import collections
+import random
 import time
 
 import commands
-from gate import QuestionGate
+from gate import QuestionGate, worth_keeping
 
 
 class Listener:
@@ -21,6 +23,8 @@ class Listener:
         self.lang = "en"
         self.device = ""  # chosen mic name, "" = Windows default
         self.ptt_vk = 0xA3  # push-to-talk key (Windows key code), Right Ctrl until the app sends its own
+        self.recent = collections.deque(maxlen=10)  # "where was I": RAM only, gone when the listener exits
+        self._openings = collections.deque(maxlen=3)  # the last three "let's start" openings, not repeated
 
     @property
     def listening(self) -> bool:
@@ -102,6 +106,13 @@ class Listener:
         if cmd is None:
             return False
         intent, arg = cmd
+        if intent == "start":
+            self._open_session()
+            return True
+        if intent == "recall":
+            last = list(self.recent)[-2:]
+            self.say(commands.reply(self.lang, "recall", " … ".join(last)) if last else commands.reply(self.lang, "recall_none"))
+            return True
         act = self.actions.get(intent)
         try:
             msg = act(arg, self.lang, self.say) if act else commands.reply(self.lang, "unknown")
@@ -112,9 +123,18 @@ class Listener:
             self.say(msg)
         return True
 
+    def _open_session(self) -> None:
+        """The user said "let's start": one opening question, never one of the last three."""
+        q = random.choice([o for o in commands.OPENINGS[self.lang] if o not in self._openings])
+        self._openings.append(q)
+        self.gate.mark_asked(self.clock())  # no regular question right on top of it
+        self.send({"type": "question", "text": q})
+
     def _narrate(self, text: str) -> bool:
         """Adds what the user said; asks if it's time. Returns whether a question went out."""
         now = self.clock()
+        if worth_keeping(text):
+            self.recent.append(text.strip())
         self.gate.add_text(text, now)
         if self.gate.should_ask(now):
             q = self.ask(self.gate.context(), self.lang)

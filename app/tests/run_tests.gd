@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -193,3 +193,13 @@ func test_step_aside() -> void:
 	check(MainScript.mic_state(true, null, false) == "on", "mic dot: listening")
 	check(MainScript.mic_state(true, "Discord.exe", false) == "paused", "mic dot: call")
 	check(MainScript.mic_state(false, null, false) == "off" and MainScript.mic_state(true, null, true) == "off", "mic dot: off or blocked")
+
+
+func test_calm_and_never() -> void:
+	var a = new_apprentice()
+	a.calm = true
+	check(not a.toss() and a.sprite.animation == "working", "a calm apprentice never tosses")
+	a.calm = false
+	check(a.toss(), "tosses again once calm is off")
+	check(MainScript.LEVELS[0] == "off", "'never' is the first question level")
+	check(MainScript.ui("tr", "off") != "" and MainScript.ui("en", "calm") != "", "labels for never and calm")
