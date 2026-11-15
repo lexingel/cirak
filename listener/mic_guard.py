@@ -64,12 +64,16 @@ def read_mic_entries() -> dict[str, tuple[int, int]]:
 
 
 _meter = None
+_meter_at = 0.0
+METER_REFRESH = 60  # seconds; the default output changes when headphones go in or out
 
 
 def speaker_busy(threshold: float = 0.02) -> bool:
-    global _meter
+    global _meter, _meter_at
+    import time
     try:
-        if _meter is None:
+        if _meter is None or time.monotonic() - _meter_at > METER_REFRESH:
+            _meter_at = time.monotonic()
             from ctypes import POINTER, cast
             from comtypes import CLSCTX_ALL
             from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
@@ -79,4 +83,5 @@ def speaker_busy(threshold: float = 0.02) -> bool:
                           POINTER(IAudioMeterInformation))
         return _meter.GetPeakValue() > threshold
     except Exception:
+        _meter = None  # device gone: pick up the new default next time
         return False

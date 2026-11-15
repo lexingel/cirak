@@ -21,7 +21,8 @@ def types(sent):
 def test_narration_leads_to_question():
     L, sent, *_ = make()
     L.speech_start(); L.speech_end(LONG)
-    assert types(sent) == ["speech_start", "speech_end", "question"]
+    # straight from listening to asking: no "back to stirring" flash before the bubble
+    assert types(sent) == ["speech_start", "question"]
 
 
 def test_call_pauses_and_drops_speech():
@@ -92,3 +93,17 @@ def test_app_picks_a_mic():
     assert L.device == ""
     L.on_client({"type": "mic_device", "name": "Mikrofon (USB 2.0 Camera)"})
     assert L.device == "Mikrofon (USB 2.0 Camera)"
+
+
+def test_short_remark_just_nods():
+    L, sent, *_ = make()
+    L.speech_start(); L.speech_end("okay then")
+    assert types(sent) == ["speech_start", "speech_end"]
+
+
+def test_call_starting_mid_speech_still_ends_listening():
+    L, sent, state, _ = make()
+    L.speech_start()
+    state["call"] = True; L.tick()
+    L.speech_end(LONG)
+    assert types(sent) == ["speech_start", "paused", "speech_end"]  # never stuck looking up

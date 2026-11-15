@@ -151,8 +151,10 @@ static func click_polygon(sprite: Rect2, top: Rect2) -> PackedVector2Array:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and text_box.visible:
-		_close_text_box()
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		_pressed = false  # a release we never saw must not leave a drag stuck on
+		if text_box.visible:
+			_close_text_box()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -179,6 +181,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _open_text_box() -> void:
+	apprentice.bubble.close()  # typing comes first; the question can wait
 	text_box.visible = true
 	text_box.grab_focus()
 	_update_passthrough()

@@ -105,3 +105,12 @@ def test_bye_closes_the_mic_before_exiting():
     calls.clear()
     main.quit_cleanly(None, exit=lambda code: calls.append(("exit", code)))  # no mic: still exits
     assert calls == [("exit", 0)]
+
+
+def test_whisper_segments_it_doubts_are_dropped():
+    from types import SimpleNamespace as S
+    from hearing import keep
+    segs = [S(text=" fixing the menu", no_speech_prob=0.1, avg_logprob=-0.3),
+            S(text=" thanks for watching", no_speech_prob=0.8, avg_logprob=-0.3),
+            S(text=" mumble", no_speech_prob=0.1, avg_logprob=-1.5)]
+    assert keep(segs) == "fixing the menu"

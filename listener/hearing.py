@@ -106,10 +106,14 @@ def _load(device: str):
     return WhisperModel("small", device=device, compute_type="float16" if device == "cuda" else "int8")
 
 
+def keep(segs) -> str:
+    """Drop segments Whisper itself thinks are not speech (where hallucinations come from)."""
+    return " ".join(s.text.strip() for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0)
+
+
 def _run(audio, lang):
     segs, _ = _model.transcribe(audio, language=lang, vad_filter=True)
-    # Drop segments Whisper itself thinks are not speech (where hallucinations come from).
-    return " ".join(s.text.strip() for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0)
+    return keep(segs)
 
 
 def transcribe(audio, lang: str = "en") -> str:

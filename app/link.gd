@@ -45,7 +45,10 @@ func _launch() -> void:
 	var listener := base.path_join("../listener").simplify_path()
 	var py := listener.path_join(".venv/Scripts/pythonw.exe")
 	if not FileAccess.file_exists(py):
-		py = "pythonw"
+		# no venv -> a bare system Python would crash on every relaunch; stay quiet instead
+		push_warning("listener venv not found: " + py)
+		_pid = -1
+		return
 	_pid = OS.create_process(py, [listener.path_join("main.py")])
 
 

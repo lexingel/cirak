@@ -4,7 +4,6 @@ extends PanelContainer
 
 signal closed
 
-const SHOW_SECONDS := 8.0
 const FADE_SECONDS := 0.5
 
 var _label := Label.new()
@@ -27,6 +26,11 @@ func _ready() -> void:
 	visible = false
 
 
+## Long questions stay up longer: 6 s plus time to read each word.
+static func show_seconds(t: String) -> float:
+	return 6.0 + 0.4 * t.split(" ", false).size()
+
+
 func text() -> String:
 	return _label.text
 
@@ -38,7 +42,7 @@ func show_text(t: String) -> void:
 	if _tween:
 		_tween.kill()
 	_tween = create_tween()
-	_tween.tween_interval(SHOW_SECONDS)
+	_tween.tween_interval(show_seconds(t))
 	_tween.tween_property(self, "modulate:a", 0.0, FADE_SECONDS)
 	_tween.tween_callback(close)
 

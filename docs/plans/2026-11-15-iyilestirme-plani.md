@@ -205,3 +205,11 @@ Boyutlar: küçük = birkaç satır, bir oturumun küçük parçası · orta = b
 5. **1.4 Duraklama nedeni menüde.** Discord/Broadcast yüzünden dinlemeyen çırak sebebini söylesin.
 
 Yolda tek satırlıklar, hangi commit'e denk gelirse: 1.6 `low_processor_mode`, 3.1 nod hızı, 2.5 `?` kontrolü + few-shot, 3.4 yazarken balonu kapat, 1.12 pin'ler, 4.5 preview yolu.
+
+---
+
+## Durum (2026-11-15 sonu)
+
+Yapıldı: 1.1-1.5, 1.6, 1.7, 1.8, 1.10, 1.11, 1.12 (`listener/requirements.lock`), 2.5 (`?` kontrolü, EN örnekleri; TR'de örnek yok, 3b kopyalıyor), 3.1, 3.2, 3.3a, 3.4, 3.5, 4.2 (Ollama ısıtma 60 s'de bir tekrar), 4.3 (PATH yedeği kaldırıldı), 4.4 (`listener/README.md`), 4.5, 5.1-5.4. Ek: mikrofon seçici, CPU Whisper yedeği, takılan bağlantı, temiz kapanış, soru talimatı.
+
+Açık (kullanıcı kararı): 6.1 kulaklık, 6.2 qwen2.5:7b, 6.3 keep_alive, 6.4 Haiku onayı, 6.5 soru zamanlaması (2.3, 2.4), 6.6 Whisper medium, 6.7 otomatik başlatma + ikon, 6.8 yeni çizimler (3.3b kabarcık dahil), 6.9 DPI. Elle test listeleri 5.5 ve 5.6.

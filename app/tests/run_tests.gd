@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -121,3 +121,14 @@ func test_mic_label() -> void:
 func test_stuck_connect() -> void:
 	check(not LinkScript.connect_stuck(1.0), "a fresh connect attempt is left alone")
 	check(LinkScript.connect_stuck(LinkScript.CONNECT_TIMEOUT), "a connect hanging this long is dropped")
+
+
+func test_small_polish() -> void:
+	check(Bubble.show_seconds("Which color?") >= 6.0, "short question still stays readable")
+	check(Bubble.show_seconds("one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen") > 10.0, "long question stays longer")
+	var a = new_apprentice()
+	check(a.ANIMS[a.State.NODDING][1] <= 4.0, "nod slow enough to be seen")
+	a._on_loop()
+	check(a.sprite.speed_scale >= 0.9 and a.sprite.speed_scale <= 1.1, "stirring tempo wobbles a little")
+	a.handle({"type": "speech_start"})
+	check(a.sprite.speed_scale == 1.0, "other poses at normal speed")

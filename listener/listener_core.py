@@ -46,16 +46,19 @@ class Listener:
             return
         self._heard = False
         text = self.transcribe(audio, self.lang)
-        self.send({"type": "speech_end"})
-        self._narrate(text)
+        if not self._narrate(text):  # a question goes straight from listening to asking
+            self.send({"type": "speech_end"})
 
-    def _narrate(self, text: str) -> None:
+    def _narrate(self, text: str) -> bool:
+        """Adds what the user said; asks if it's time. Returns whether a question went out."""
         now = self.clock()
         self.gate.add_text(text, now)
         if self.gate.should_ask(now):
             q = self.ask(self.gate.context(), self.lang)
             self.gate.mark_asked(now)
             self.send({"type": "question", "text": q})
+            return True
+        return False
 
     def on_client(self, msg: dict) -> None:
         t = msg.get("type")

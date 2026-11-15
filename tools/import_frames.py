@@ -1,6 +1,6 @@
 """Turn raw apprentice frames (Grok Imagine exports) into the strips the Godot app loads.
 
-  python tools/import_frames.py            # art_in/<state>/*.png -> app/art/apprentice_<state>.png + preview.png
+  python tools/import_frames.py            # art_in/<state>/*.png -> app/art/apprentice_<state>.png (+ art_in/preview.png)
   python tools/import_frames.py --cell 12  # source pixels per art pixel, if auto-detect guesses wrong
   python tools/import_frames.py --selftest
 
@@ -130,7 +130,7 @@ def build(in_dir, out_dir, tol=80, cell=None):
     for r, s in enumerate(strips.values()):
         im = Image.fromarray(s).resize((s.shape[1] * S, SIZE * S), Image.NEAREST)
         prev.alpha_composite(im, (8, 8 + r * (SIZE * S + 8)))
-    prev.save(out_dir / "preview.png")
+    prev.save(Path(in_dir) / "preview.png")  # next to the input, not app/art: it would end up inside the exe
     return strips
 
 
@@ -164,7 +164,7 @@ def selftest():
                 sizes.add((xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
                 assert (f[f[..., 3] > 0][:, :3] != (0, 255, 255)).any(-1).all(), "key pixels left"
         assert len(sizes) == 1, f"shape size differs between frames: {sizes}"
-        assert (tmp / "out" / "preview.png").exists()
+        assert (tmp / "in" / "preview.png").exists() and not (tmp / "out" / "preview.png").exists()
         assert not (tmp / "out" / "apprentice_asking.png").exists()
     print(f"selftest OK: 3 states, 9 frames, shape {sizes.pop()} in every frame")
 

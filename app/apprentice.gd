@@ -11,7 +11,7 @@ const FRAME := 48
 const ANIMS := {
 	State.WORKING: ["working", 8.0, true],
 	State.LISTENING: ["listening", 2.0, true],
-	State.NODDING: ["nodding", 8.0, false],
+	State.NODDING: ["nodding", 4.0, false],  ## at 8 fps the nod was a twitch
 	State.ASKING: ["asking", 3.0, true],
 }
 const TOSS := ["toss", 8.0, false]  ## now and then while working: drops a leaf in, then stirs on
@@ -27,9 +27,11 @@ func _ready() -> void:
 	sprite.sprite_frames = _load_frames()
 	sprite.scale = Vector2(SCALE, SCALE)
 	sprite.animation_finished.connect(_on_anim_finished)
+	sprite.animation_looped.connect(_on_loop)
 	add_child(sprite)
 	bubble.closed.connect(_on_bubble_closed)
 	add_child(bubble)
+	bubble.resized.connect(shape_changed.emit)  # click area follows the bubble's real size
 	bubble.position = Vector2(-118, -FRAME * SCALE / 2.0 - 70)
 	_enter(State.WORKING)
 	toss_timer.timeout.connect(_on_toss_timer)
@@ -103,8 +105,15 @@ func _on_toss_timer() -> void:
 	toss_timer.start(randf_range(TOSS_EVERY.x, TOSS_EVERY.y))
 
 
+## Each stir at a slightly different pace, so it never ticks like a metronome.
+func _on_loop() -> void:
+	if sprite.animation == ANIMS[State.WORKING][0]:
+		sprite.speed_scale = randf_range(0.9, 1.1)
+
+
 func _enter(s: State) -> void:
 	state = s
+	sprite.speed_scale = 1.0
 	sprite.play(ANIMS[s][0])
 
 

@@ -52,11 +52,13 @@ async def run():
     def send(msg: dict):
         data = json.dumps(msg, ensure_ascii=False)
         for ws in list(clients):
-            loop.call_soon_threadsafe(asyncio.ensure_future, ws.send(data))
+            # result is dropped on purpose: a send to a closing app is not worth a log line
+            asyncio.run_coroutine_threadsafe(ws.send(data), loop).add_done_callback(lambda f: f.exception())
 
     core = Listener(send=send, transcribe=transcribe, ask=ask,
                     call_busy=lambda: mic_guard.mic_user(mic_guard.read_mic_entries(), mic_guard.own_exes()),
                     speaker_busy=mic_guard.speaker_busy)
+    core.mic_on = False  # the mic stays shut until the app sends its saved setting (it does on connect)
 
     # Transcribing and asking are slow; one worker thread keeps them off the audio callback.
     def worker():
@@ -69,7 +71,12 @@ async def run():
 
     threading.Thread(target=worker, daemon=True).start()
     work.put((lambda: transcribe(__import__("numpy").zeros(16000, "float32")), None))  # warm the model
-    work.put((lambda: ask_local("warming up", "en"), None))  # load the local model now, not on the first question
+    warm = {"ok": False, "at": 0}
+
+    def warm_model():  # load the local model now, not on the first question; retried while Ollama boots
+        warm["ok"] = ask_local("warming up", "en") is not None
+
+    work.put((warm_model, None))
     def make_hearing():
         return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
                                             on_end=lambda audio: work.put((core.speech_end, audio)),
@@ -106,6 +113,9 @@ async def run():
         while True:
             await asyncio.sleep(1)
             work.put((core.tick, None))
+            warm["at"] += 1
+            if not warm["ok"] and warm["at"] % 60 == 0:
+                work.put((warm_model, None))
             want = core.listening
             if core.device != device:  # the user picked another mic in the menu
                 device = core.device
