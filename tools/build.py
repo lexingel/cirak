@@ -11,7 +11,7 @@ dist/Cirak/
   listener/*.py             the listener code
   listener/python/          python-3.12.10 embeddable (pythonw.exe), ._pth points at ../lib
   listener/lib/             faster-whisper, sounddevice, ... (no anthropic, no pytest)
-  README.txt LICENSE LICENSES.txt
+  README.txt LICENSE LICENSES.txt ART-LICENSE.txt
 """
 import argparse
 import hashlib
@@ -180,6 +180,7 @@ def main():
 
     (OUT / "README.txt").write_text(README, encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", OUT / "LICENSE")
+    shutil.copy2(ROOT / "app" / "art" / "skins" / "LICENSE.txt", OUT / "ART-LICENSE.txt")  # looks: CC BY 4.0
     (OUT / "LICENSES.txt").write_text(licenses(lib), encoding="utf-8")
 
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6
