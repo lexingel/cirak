@@ -62,3 +62,15 @@ def test_reply_quotes_and_prefix_stripped():
 def test_fallback_lists_shape():
     for lang in ("en", "tr"):
         assert len(FALLBACK[lang]) == 18 and all(len(q.split()) <= 15 for q in FALLBACK[lang])
+
+
+def test_local_request_keeps_model_loaded(monkeypatch):
+    import asker, io, json as j
+    sent = {}
+
+    def fake_urlopen(req, timeout):
+        sent.update(j.loads(req.data))
+        return io.BytesIO(b'{"message": {"content": "What next?"}}')
+    monkeypatch.setattr(asker.urllib.request, "urlopen", fake_urlopen)
+    assert asker.ask_local("x", "en") == "What next?"
+    assert sent["keep_alive"] == asker.KEEP_ALIVE  # questions come minutes apart; default 5m unload = 30s cold load

@@ -9,7 +9,7 @@ import threading
 import websockets
 
 import mic_guard
-from asker import ask
+from asker import ask, ask_local
 from hearing import Hearing, transcribe
 from listener_core import Listener
 
@@ -44,6 +44,7 @@ async def run():
 
     threading.Thread(target=worker, daemon=True).start()
     work.put((lambda: transcribe(__import__("numpy").zeros(16000, "float32")), None))  # warm the model
+    work.put((lambda: ask_local("warming up", "en"), None))  # load the local model now, not on the first question
     hearing = Hearing(on_start=lambda: work.put((core.speech_start, None)),
                       on_end=lambda audio: work.put((core.speech_end, audio)))
     hearing.start()

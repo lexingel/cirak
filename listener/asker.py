@@ -13,6 +13,7 @@ LOCAL_URL = "http://127.0.0.1:11434/api/chat"
 LOCAL_MODEL = os.environ.get("CIRAK_MODEL", "qwen2.5:3b")
 HAIKU = "claude-haiku-5-5"
 MAX_WORDS = 15
+KEEP_ALIVE = "2h"  # ponytail: holds ~2 GB VRAM while idle; after 2h silence the first question uses the list
 
 SYSTEM = {
     "en": ("You are a tiny wizard apprentice quietly stirring a potion next to the user. The user is telling "
@@ -70,7 +71,7 @@ FALLBACK = {
 def ask_local(context: str, lang: str):
     """Ask the local Ollama model. Returns the reply text, or None if it isn't running."""
     body = json.dumps({
-        "model": LOCAL_MODEL, "stream": False,
+        "model": LOCAL_MODEL, "stream": False, "keep_alive": KEEP_ALIVE,
         "messages": [{"role": "system", "content": SYSTEM[lang]}, {"role": "user", "content": context}],
         "options": {"num_predict": 40, "temperature": 0.7},
     }).encode()
