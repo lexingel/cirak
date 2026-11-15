@@ -16,12 +16,23 @@ MAX_WORDS = 15
 KEEP_ALIVE = "2h"  # ponytail: holds ~2 GB VRAM while idle; after 2h silence the first question uses the list
 
 SYSTEM = {
-    "en": ("You are a tiny wizard apprentice quietly stirring a potion next to the user. The user is telling "
-           "you what they are working on right now. Based on what they said, ask ONE short, curious question "
-           "(15 words max). No advice, no judging, no pushing. Reply with the question only."),
-    "tr": ("Sen kullanıcının yanında sessizce iksir karıştıran küçük bir büyücü çıraksın. "
-           "Kullanıcı sana o an ne üzerinde çalıştığını anlatıyor. Anlattığına dayanarak tek bir kısa, "
-           "meraklı soru sor (en fazla 15 kelime). Tavsiye verme, yargılama, hesap sorma. Sadece soruyu yaz."),
+    "en": ("You are a tiny wizard apprentice keeping the user company while they work. The potion you stir "
+           "is YOUR task, not theirs: never ask about potions, ingredients or magic. Read what the user just "
+           "said and reply with ONE short, curious question (15 words max) about something they actually "
+           "said. Never invent details. If they only greet you or chat, greet back briefly and ask what "
+           "they are working on. No advice, no judging, no pushing. Reply with the question only.\n"
+           "Examples:\n"
+           "User: Hello apprentice, how are you? -> Hello! I'm stirring away. What are you working on?\n"
+           "User: I'm fixing the menu buttons and trying new colors. -> Which color is winning so far?\n"
+           "User: This function keeps returning null. -> Where does the null first show up?"),
+    "tr": ("Sen kullanıcıya çalışırken eşlik eden küçük bir büyücü çıraksın. Karıştırdığın iksir SENİN işin, "
+           "onun değil: asla iksir, malzeme ya da büyü sorma. Kullanıcının az önce söylediğini oku ve "
+           "gerçekten söylediği bir şey hakkında tek bir kısa, meraklı soru sor (en fazla 15 kelime). "
+           "Asla ayrıntı uydurma. Sadece selam verirse ya da sohbet ederse kısaca selam ver ve ne üzerinde "
+           "çalıştığını sor. Tavsiye verme, yargılama, hesap sorma. Sadece soruyu yaz, \"sen\" diye hitap et.\n"
+           "Örnekler:\n"
+           "Kullanıcı: Merhaba çırak, nasılsın? -> Merhaba! Ben kazanı karıştırıyorum. Sen ne üzerinde çalışıyorsun?"),
+    # ponytail: no work examples in TR, the 3b model copies them verbatim; a 7b model could take them
 }
 
 FALLBACK = {
@@ -103,7 +114,8 @@ def _clean(reply):
     lines = reply.strip().splitlines()
     q = lines[0].strip() if lines else ""
     q = re.sub(r"^(question|soru)\s*:\s*", "", q, flags=re.I).strip().strip('"“”\'').strip()
-    return q if q and len(q.split()) <= MAX_WORDS else None
+    # advice or a remark instead of a question -> the gentle list instead
+    return q if q.endswith("?") and len(q.split()) <= MAX_WORDS else None
 
 
 def ask(context: str, lang: str = "en", client=None, local=ask_local, rng=random) -> str:

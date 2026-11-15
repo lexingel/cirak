@@ -74,3 +74,14 @@ def test_local_request_keeps_model_loaded(monkeypatch):
     monkeypatch.setattr(asker.urllib.request, "urlopen", fake_urlopen)
     assert asker.ask_local("x", "en") == "What next?"
     assert sent["keep_alive"] == asker.KEEP_ALIVE  # questions come minutes apart; default 5m unload = 30s cold load
+
+
+def test_reply_that_is_not_a_question_is_dropped():
+    import asker
+    assert asker._clean("You should take a break and drink water.") is None
+    assert asker._clean("Which color is winning so far?") == "Which color is winning so far?"
+
+
+def test_prompt_keeps_the_potion_out_of_the_users_work():
+    import asker
+    assert "never ask about potions" in asker.SYSTEM["en"]
