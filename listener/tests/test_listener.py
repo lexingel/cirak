@@ -85,3 +85,10 @@ def test_pause_says_who_holds_the_mic():
     L, sent, state, _ = make()
     state["call"] = "Discord.exe"; L.tick()
     assert sent == [{"type": "paused", "reason": "call", "who": "Discord.exe"}]
+
+
+def test_app_picks_a_mic():
+    L, *_ = make()
+    assert L.device == ""
+    L.on_client({"type": "mic_device", "name": "Mikrofon (USB 2.0 Camera)"})
+    assert L.device == "Mikrofon (USB 2.0 Camera)"

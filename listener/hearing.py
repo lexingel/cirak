@@ -39,6 +39,20 @@ class Detector:
             self.on_end(audio)
 
 
+def input_mics(devices) -> list[str]:
+    """Mics Windows has enabled, once each (MME list: it resamples to 16 kHz for us)."""
+    return [d["name"] for d in devices if d["hostapi"] == 0 and d["max_input_channels"] > 0
+            and not d["name"].startswith("Microsoft Sound Mapper")]
+
+
+def device_index(devices, name: str):
+    """Index of the chosen mic, or None (= Windows default) if it's gone or none was chosen."""
+    for i, d in enumerate(devices):
+        if name and d["hostapi"] == 0 and d["max_input_channels"] > 0 and d["name"] == name:
+            return i
+    return None
+
+
 class Loudness:
     """Is this block louder than the room? Tracks the noise floor so a fan or hum stops counting as speech.
 
@@ -60,11 +74,12 @@ class Loudness:
 
 class Hearing:
     # ponytail: energy VAD + noise floor, swap for silero if noisy rooms still misfire
-    def __init__(self, on_start, on_end, threshold: float = 0.015):
+    def __init__(self, on_start, on_end, threshold: float = 0.015, device: str = ""):
         import sounddevice as sd
         self.loud = Loudness(threshold)
         self.detector = Detector(on_start, on_end)
-        self._stream = sd.InputStream(samplerate=RATE, channels=1, blocksize=BLOCK,
+        self._stream = sd.InputStream(device=device_index(sd.query_devices(), device),
+                                      samplerate=RATE, channels=1, blocksize=BLOCK,
                                       dtype="float32", callback=self._cb)
 
     def start(self):
@@ -72,6 +87,10 @@ class Hearing:
 
     def stop(self):
         self._stream.stop()
+        self.detector.reset()
+
+    def close(self):
+        self._stream.close()
         self.detector.reset()
 
     def _cb(self, data, frames, t, status):

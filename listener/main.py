@@ -15,7 +15,7 @@ import websockets
 
 import mic_guard
 from asker import ask, ask_local
-from hearing import Hearing, transcribe
+from hearing import Hearing, input_mics, transcribe
 from listener_core import Listener
 
 PORT = 47613
@@ -59,12 +59,23 @@ async def run():
     threading.Thread(target=worker, daemon=True).start()
     work.put((lambda: transcribe(__import__("numpy").zeros(16000, "float32")), None))  # warm the model
     work.put((lambda: ask_local("warming up", "en"), None))  # load the local model now, not on the first question
-    hearing = open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
-                                           on_end=lambda audio: work.put((core.speech_end, audio))))
+    def make_hearing():
+        return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
+                                            on_end=lambda audio: work.put((core.speech_end, audio)),
+                                            device=core.device))
+
+    hearing = make_hearing()
+    device = core.device
     mic_running = False  # the loop below starts it once listening is wanted
 
     async def handler(ws, *_):
         clients.add(ws)
+        try:
+            import sounddevice as sd
+            # ponytail: list read at listener start; a mic plugged in later shows after an app restart
+            await ws.send(json.dumps({"type": "mics", "list": input_mics(sd.query_devices())}, ensure_ascii=False))
+        except Exception as e:
+            print("listener: mic list:", e, file=sys.stderr)
         try:
             async for raw in ws:
                 try:
@@ -83,6 +94,11 @@ async def run():
             await asyncio.sleep(1)
             work.put((core.tick, None))
             want = core.listening
+            if core.device != device:  # the user picked another mic in the menu
+                device = core.device
+                if hearing:
+                    hearing.close()
+                hearing, mic_running = make_hearing(), False
             if hearing and want != mic_running:
                 try:
                     hearing.start() if want else hearing.stop()

@@ -51,3 +51,24 @@ def test_no_mic_does_not_crash():
     def broken():
         raise OSError("no input device")
     assert main.open_hearing(broken) is None
+
+
+DEVICES = [
+    {"name": "Microsoft Sound Mapper - Input", "hostapi": 0, "max_input_channels": 2},
+    {"name": "FaceRig Virtual Microphone (Fac", "hostapi": 0, "max_input_channels": 2},
+    {"name": "Mikrofon (USB 2.0 Camera)", "hostapi": 0, "max_input_channels": 1},
+    {"name": "Speakers (Realtek)", "hostapi": 0, "max_input_channels": 0},
+    {"name": "Mikrofon (USB 2.0 Camera)", "hostapi": 2, "max_input_channels": 1},
+]
+
+
+def test_mic_list_is_real_inputs_once():
+    from hearing import input_mics
+    assert input_mics(DEVICES) == ["FaceRig Virtual Microphone (Fac", "Mikrofon (USB 2.0 Camera)"]
+
+
+def test_mic_by_name_falls_back_to_default():
+    from hearing import device_index
+    assert device_index(DEVICES, "Mikrofon (USB 2.0 Camera)") == 2
+    assert device_index(DEVICES, "unplugged mic") is None
+    assert device_index(DEVICES, "") is None

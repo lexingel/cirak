@@ -13,6 +13,7 @@ class Listener:
         self.paused = False
         self._heard = False
         self.lang = "en"
+        self.device = ""  # chosen mic name, "" = Windows default
 
     @property
     def listening(self) -> bool:
@@ -64,5 +65,7 @@ class Listener:
             self.mic_on = bool(msg.get("on"))
         elif t == "lang" and msg.get("lang") in ("en", "tr"):
             self.lang = msg["lang"]
+        elif t == "mic_device":
+            self.device = str(msg.get("name", ""))
         elif t == "frequency":
             self.gate.set_level(str(msg.get("level")))

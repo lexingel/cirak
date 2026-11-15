@@ -6,19 +6,23 @@ signal typed(text: String)
 signal mic_changed(on: bool)
 signal frequency_changed(level: String)
 signal lang_changed(lang: String)
+signal mic_device_changed(name: String)
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
 const LEVELS := ["low", "mid", "high"]
 const LANGS := ["en", "tr"]
 const PAUSE_ID := 5
+const MIC_ID := 6
 const TEXT := {
 	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
 		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
-		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused"},
+		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
+		"microphone": "Microphone", "default_mic": "Windows default"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
-		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı"},
+		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
+		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı"},
 }
 
 var apprentice: Apprentice
@@ -30,6 +34,9 @@ var mic_on := true
 var level := "mid"
 var lang := "en"
 var lang_menu := PopupMenu.new()
+var mic_menu := PopupMenu.new()
+var mics: Array = []  ## mic names the listener reported; the menu lists "" (default) + these
+var mic_device := ""
 var paused_by = null  ## null = listening; "" or an app name = paused by a call
 
 var _pressed := false
@@ -46,6 +53,10 @@ static func ui(l: String, key: String) -> String:
 static func pause_text(l: String, who: String) -> String:
 	var t := ui(l, "paused")
 	return t if who.is_empty() else "%s (%s)" % [t, who]
+
+
+static func mic_label(l: String, name: String) -> String:
+	return ui(l, "default_mic") if name.is_empty() else name
 
 
 static func clamp_to_screen(pos: Vector2i, size: Vector2i, rect: Rect2i) -> Vector2i:
@@ -75,9 +86,12 @@ func _ready() -> void:
 	lang_menu.id_pressed.connect(func(id): _set_lang(LANGS[id]))
 	menu.add_child(freq_menu)
 	menu.add_child(lang_menu)
+	mic_menu.id_pressed.connect(func(id): _set_mic_device(_mic_names()[id]))
+	menu.add_child(mic_menu)
 	menu.add_item("", 0)
 	menu.add_submenu_node_item("", freq_menu, 1)
 	menu.add_submenu_node_item("", lang_menu, 3)
+	menu.add_submenu_node_item("", mic_menu, MIC_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -87,6 +101,7 @@ func _ready() -> void:
 	mic_on = cfg.get_value("prefs", "mic", true)
 	level = cfg.get_value("prefs", "frequency", "mid")
 	lang = cfg.get_value("prefs", "lang", "en")
+	mic_device = cfg.get_value("prefs", "mic_device", "")
 	_refresh_menu()
 
 	var link := Link.new()
@@ -97,7 +112,9 @@ func _ready() -> void:
 		_set_paused(null)  # a fresh listener re-sends "paused" if a call is still on
 		link.send({"type": "mic", "on": mic_on})
 		link.send({"type": "frequency", "level": level})
-		link.send({"type": "lang", "lang": lang}))
+		link.send({"type": "lang", "lang": lang})
+		link.send({"type": "mic_device", "name": mic_device}))
+	mic_device_changed.connect(func(n): link.send({"type": "mic_device", "name": n}))
 	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
 	typed.connect(func(t): link.send({"type": "typed", "text": t}))
 	mic_changed.connect(func(on): link.send({"type": "mic", "on": on}))
@@ -201,6 +218,9 @@ func _on_link_message(msg: Dictionary) -> void:
 			_set_paused(str(msg.get("who", "")))
 		"resumed":
 			_set_paused(null)
+		"mics":
+			mics = msg.get("list", [])
+			_refresh_menu()
 
 
 func _set_paused(who) -> void:
@@ -215,6 +235,21 @@ func _set_paused(who) -> void:
 		idx = menu.get_item_index(PAUSE_ID)
 		menu.set_item_disabled(idx, true)
 		menu.set_item_index(idx, 0)
+	_refresh_menu()
+
+
+func _mic_names() -> Array:
+	var names := [""]
+	names.append_array(mics)
+	if not mic_device.is_empty() and not mics.has(mic_device):
+		names.append(mic_device)  # saved mic that isn't plugged in now: keep it visible
+	return names
+
+
+func _set_mic_device(n: String) -> void:
+	mic_device = n
+	mic_device_changed.emit(n)
+	_save()
 	_refresh_menu()
 
 
@@ -242,6 +277,12 @@ func _refresh_menu() -> void:
 		freq_menu.set_item_checked(i, LEVELS[i] == level)
 	for i in LANGS.size():
 		lang_menu.set_item_checked(i, LANGS[i] == lang)
+	menu.set_item_text(menu.get_item_index(MIC_ID), ui(lang, "microphone"))
+	mic_menu.clear()
+	var names := _mic_names()
+	for i in names.size():
+		mic_menu.add_radio_check_item(mic_label(lang, names[i]), i)
+		mic_menu.set_item_checked(i, names[i] == mic_device)
 	text_box.placeholder_text = ui(lang, "placeholder")
 	if paused_by != null:
 		menu.set_item_text(menu.get_item_index(PAUSE_ID), pause_text(lang, paused_by))
@@ -252,6 +293,7 @@ func _save() -> void:
 	cfg.set_value("prefs", "mic", mic_on)
 	cfg.set_value("prefs", "frequency", level)
 	cfg.set_value("prefs", "lang", lang)
+	cfg.set_value("prefs", "mic_device", mic_device)
 	cfg.save(SETTINGS)
 
 
