@@ -72,6 +72,8 @@ async def run():
                 except ValueError:
                     continue
                 work.put((core.on_client, msg))
+        except websockets.ConnectionClosed:
+            pass  # the app closing without a goodbye is normal, not a log entry
         finally:
             clients.discard(ws)
 
