@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -91,3 +91,16 @@ func test_ui_text() -> void:
 	check(MainScript.TEXT["en"].keys() == MainScript.TEXT["tr"].keys(), "both languages have every label")
 	check(MainScript.ui("en", "close") == "Close" and MainScript.ui("tr", "close") == "Kapat", "label lookup")
 	check(MainScript.ui("xx", "close") == "Close", "unknown language -> English")
+
+
+func test_toss() -> void:
+	var a = new_apprentice()
+	check(a.sprite.sprite_frames.get_frame_count("toss") == 10, "toss strip loaded")
+	check(a.toss() and a.sprite.animation == "toss" and a.state == a.State.WORKING, "toss plays while working")
+	a._on_anim_finished()
+	check(a.sprite.animation == "working", "back to stirring after toss")
+	a.toss()
+	a.handle({"type": "speech_start"})
+	check(a.sprite.animation == "listening", "talking interrupts a toss")
+	check(not a.toss() and a.sprite.animation == "listening", "no toss unless working")
+	check(a.toss_timer.wait_time >= 45.0, "toss is rare")

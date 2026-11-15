@@ -14,10 +14,13 @@ const ANIMS := {
 	State.NODDING: ["nodding", 8.0, false],
 	State.ASKING: ["asking", 3.0, true],
 }
+const TOSS := ["toss", 8.0, false]  ## now and then while working: drops a leaf in, then stirs on
+const TOSS_EVERY := Vector2(45.0, 120.0)  ## seconds, random in this range
 
 var state: State = State.WORKING
 var sprite := AnimatedSprite2D.new()
 var bubble := Bubble.new()
+var toss_timer := Timer.new()
 
 
 func _ready() -> void:
@@ -29,6 +32,9 @@ func _ready() -> void:
 	add_child(bubble)
 	bubble.position = Vector2(-118, -FRAME * SCALE / 2.0 - 70)
 	_enter(State.WORKING)
+	toss_timer.timeout.connect(_on_toss_timer)
+	add_child(toss_timer)
+	toss_timer.start(randf_range(TOSS_EVERY.x, TOSS_EVERY.y))
 
 
 ## Strips live in art/apprentice_<name>.png (48 px frames, side by side).
@@ -36,8 +42,7 @@ func _ready() -> void:
 func _load_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
 	sf.remove_animation("default")
-	for s in ANIMS:
-		var spec: Array = ANIMS[s]
+	for spec in ANIMS.values() + [TOSS]:
 		var name: String = spec[0]
 		sf.add_animation(name)
 		sf.set_animation_speed(name, spec[1])
@@ -83,13 +88,26 @@ func sprite_rect() -> Rect2:
 	return Rect2(position - Vector2(half, half), Vector2(FRAME * SCALE, FRAME * SCALE))
 
 
+## Plays the toss once if the apprentice is just stirring. Returns whether it started.
+func toss() -> bool:
+	if state != State.WORKING or sprite.animation != ANIMS[State.WORKING][0]:
+		return false
+	sprite.play(TOSS[0])
+	return true
+
+
+func _on_toss_timer() -> void:
+	toss()
+	toss_timer.start(randf_range(TOSS_EVERY.x, TOSS_EVERY.y))
+
+
 func _enter(s: State) -> void:
 	state = s
 	sprite.play(ANIMS[s][0])
 
 
 func _on_anim_finished() -> void:
-	if state == State.NODDING:
+	if state == State.NODDING or sprite.animation == TOSS[0]:
 		_enter(State.WORKING)
 
 
