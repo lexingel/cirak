@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Çırak neler yapabilir?</title>
 <style>
-  :root { --bg: #f6f0e4; --ink: #2e2a24; --muted: #6e665a; --accent: #8a4a1c; --card: #fffaf0; --line: #e2d6bf; }
+  :root { --bg: #f6f0e4; --ink: #2e2a24; --muted: #6e665a; --accent: #8a4a1c; --card: #fffaf0; --line: #e2d6bf; --on: #2e7d32; --pause: #8a6100; --off: #b03a2e; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #1f1b16; --ink: #efe7da; --muted: #a99f90; --accent: #e0a46a; --card: #29241d; --line: #3b342a; }
+    :root { --bg: #1f1b16; --ink: #efe7da; --muted: #a99f90; --accent: #e0a46a; --card: #29241d; --line: #3b342a; --on: #81c784; --pause: #e0b45a; --off: #ef8a7f; }
   }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "Segoe UI", system-ui, sans-serif; }
   main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
@@ -18,6 +18,7 @@
   ul { margin: 0; padding-left: 20px; }
   li { margin: 6px 0; }
   kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 14px "Segoe UI", sans-serif; background: var(--bg); }
+  .on { color: var(--on); } .pause { color: var(--pause); } .off { color: var(--off); }
   .say { font-style: italic; }
   .small { color: var(--muted); font-size: 14px; }
 </style>
@@ -53,7 +54,7 @@
     <li><b>Soru modeli:</b> daha iyi sorular için Ollama modeli; boyutu ve farkı yanında yazar</li>
     <li><b>Komut tuşu</b> ve <b>Açabileceğim uygulamalar</b></li>
   </ul>
-  <p class="small">Sürükleyerek çırağı ekranda istediğin yere taşıyabilirsin. Görüntülü görüşmedeyken kendiliğinden susar, tam ekran oyun ya da video açılınca o ekrandan çekilir. Yanındaki küçük nokta mikrofonu gösterir: <b style="color:#4caf50">yeşil</b> dinliyor, <b style="color:#d9a441">sarı</b> görüşme yüzünden duraklatıldı, <b style="color:#c0392b">kırmızı</b> kapalı.</p></div>
+  <p class="small">Sürükleyerek çırağı ekranda istediğin yere taşıyabilirsin. Görüntülü görüşmedeyken kendiliğinden susar, tam ekran oyun ya da video açılınca o ekrandan çekilir. Yanındaki küçük nokta mikrofonu gösterir: <b class="on">yeşil</b> dinliyor, <b class="pause">sarı</b> görüşme yüzünden duraklatıldı, <b class="off">kırmızı</b> kapalı.</p></div>
 
   <h2>Gizlilik</h2>
   <div class="card"><p style="margin:0">Söylediklerin bu bilgisayarda yazıya çevrilir ve hiçbir yere gönderilmez. Bilgisayardan çıkan tek şeyler: "Claude'a sor" sonrası cümle (kendi Claude girişinle), "Claude'a iş ver" görevi (sen Enter'a basınca) ve ilk açılıştaki model indirmeleri.</p></div>
