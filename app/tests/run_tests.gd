@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -116,3 +116,8 @@ func test_mic_label() -> void:
 	check(MainScript.mic_label("en", "") == "Windows default", "empty mic = Windows default")
 	check(MainScript.mic_label("tr", "") == "Windows varsayılanı", "default in Turkish")
 	check(MainScript.mic_label("en", "Mikrofon (USB 2.0 Camera)") == "Mikrofon (USB 2.0 Camera)", "mic shown by name")
+
+
+func test_stuck_connect() -> void:
+	check(not LinkScript.connect_stuck(1.0), "a fresh connect attempt is left alone")
+	check(LinkScript.connect_stuck(LinkScript.CONNECT_TIMEOUT), "a connect hanging this long is dropped")

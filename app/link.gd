@@ -7,6 +7,7 @@ signal connected
 
 const URL := "ws://127.0.0.1:47613"
 const RETRY_SECONDS := 2.0
+const CONNECT_TIMEOUT := 3.0  ## a connect to a dead port can hang in SYN_SENT forever on Windows
 const RELAUNCH_SECONDS := 10.0  ## backoff, so a listener that keeps dying (no mic) is not hammered
 
 var _ws := WebSocketPeer.new()
@@ -14,6 +15,7 @@ var _pid := -1
 var _retry := 0.0
 var _was_open := false
 var _since_launch := 0.0
+var _connecting := 0.0
 
 
 static func parse(text: String) -> Dictionary:
@@ -21,6 +23,10 @@ static func parse(text: String) -> Dictionary:
 	if j.parse(text) != OK or typeof(j.data) != TYPE_DICTIONARY or not j.data.has("type"):
 		return {}
 	return j.data
+
+
+static func connect_stuck(seconds_connecting: float) -> bool:
+	return seconds_connecting >= CONNECT_TIMEOUT
 
 
 static func needs_relaunch(running: bool, seconds_since_launch: float) -> bool:
@@ -45,6 +51,13 @@ func _launch() -> void:
 func _process(delta: float) -> void:
 	_ws.poll()
 	var st := _ws.get_ready_state()
+	if st == WebSocketPeer.STATE_CONNECTING:
+		_connecting += delta
+		_since_launch += delta
+		if connect_stuck(_connecting):
+			_ws = WebSocketPeer.new()  # drop it; the CLOSED branch retries and relaunches if needed
+		return
+	_connecting = 0.0
 	if st == WebSocketPeer.STATE_OPEN:
 		if not _was_open:
 			_was_open = true
