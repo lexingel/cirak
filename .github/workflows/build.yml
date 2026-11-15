@@ -14,7 +14,8 @@ permissions:
 
 env:
   GODOT_VERSION: 4.7.2-stable
-  GODOT: ${{ github.workspace }}\godot\Godot_v4.7.2-stable_win64.exe
+  # the console exe: PowerShell does not wait for the GUI exe, so --import would still be running
+  GODOT: ${{ github.workspace }}\godot\Godot_v4.7.2-stable_win64_console.exe
 
 jobs:
   build:
