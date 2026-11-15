@@ -5,6 +5,11 @@ import os
 import queue
 import sys
 import threading
+from pathlib import Path
+
+# pythonw has no console: send errors to a file (errors only, never what the user said)
+if sys.stderr is None:
+    sys.stderr = sys.stdout = open(Path(__file__).with_name("listener.log"), "a", buffering=1, encoding="utf-8")
 
 import websockets
 
@@ -19,6 +24,15 @@ IDLE_EXIT = 10  # seconds without the app -> quit, so no orphan mic stays open
 SERVE_KW = {"origins": [None]}
 
 
+def open_hearing(make):
+    """The mic, or None if there is none (unplugged, no device): typing still works, no crash loop."""
+    try:
+        return make()
+    except Exception as e:
+        print("listener: no mic:", e, file=sys.stderr)
+        return None
+
+
 async def run():
     loop = asyncio.get_running_loop()
     clients: set = set()
@@ -30,7 +44,7 @@ async def run():
             loop.call_soon_threadsafe(asyncio.ensure_future, ws.send(data))
 
     core = Listener(send=send, transcribe=transcribe, ask=ask,
-                    call_busy=lambda: mic_guard.mic_in_use_by_other(mic_guard.read_mic_entries(), mic_guard.own_exes()),
+                    call_busy=lambda: mic_guard.mic_user(mic_guard.read_mic_entries(), mic_guard.own_exes()),
                     speaker_busy=mic_guard.speaker_busy)
 
     # Transcribing and asking are slow; one worker thread keeps them off the audio callback.
@@ -45,10 +59,9 @@ async def run():
     threading.Thread(target=worker, daemon=True).start()
     work.put((lambda: transcribe(__import__("numpy").zeros(16000, "float32")), None))  # warm the model
     work.put((lambda: ask_local("warming up", "en"), None))  # load the local model now, not on the first question
-    hearing = Hearing(on_start=lambda: work.put((core.speech_start, None)),
-                      on_end=lambda audio: work.put((core.speech_end, audio)))
-    hearing.start()
-    mic_running = True
+    hearing = open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
+                                           on_end=lambda audio: work.put((core.speech_end, audio))))
+    mic_running = False  # the loop below starts it once listening is wanted
 
     async def handler(ws, *_):
         clients.add(ws)
@@ -68,12 +81,17 @@ async def run():
             await asyncio.sleep(1)
             work.put((core.tick, None))
             want = core.listening
-            if want != mic_running:
-                hearing.start() if want else hearing.stop()
-                mic_running = want
+            if hearing and want != mic_running:
+                try:
+                    hearing.start() if want else hearing.stop()
+                    mic_running = want
+                except Exception as e:  # device vanished: carry on without the mic
+                    print("listener: mic lost:", e, file=sys.stderr)
+                    hearing = None
             idle = 0 if clients else idle + 1
             if idle >= IDLE_EXIT:
-                hearing.stop()
+                if hearing:
+                    hearing.stop()
                 os._exit(0)
 
 

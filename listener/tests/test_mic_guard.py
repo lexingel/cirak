@@ -27,3 +27,9 @@ def test_venv_launcher_base_interpreter_not_counted():
              r"C:\Users\x\AppData\Local\Programs\Python\Python310\python.exe"]
     key = "C:#Users#x#AppData#Local#Programs#Python#Python310#pythonw.exe"
     assert not mic_in_use_by_other({key: (5, 0)}, selfs)
+
+
+def test_mic_user_names_the_app():
+    from mic_guard import mic_user
+    assert mic_user({"C:#Users#x#Discord.exe": (5, 0)}, SELF) == "Discord.exe"
+    assert mic_user({"C:#Users#x#Discord.exe": (5, 9)}, SELF) is None

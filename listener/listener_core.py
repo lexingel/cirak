@@ -23,7 +23,10 @@ class Listener:
         if busy and not self.paused:
             self.paused = True
             self.gate.pause()
-            self.send({"type": "paused", "reason": "call"})
+            msg = {"type": "paused", "reason": "call"}
+            if isinstance(busy, str):
+                msg["who"] = busy  # shown in the right-click menu, so a silent apprentice has a reason
+            self.send(msg)
         elif not busy and self.paused:
             self.paused = False
             self.send({"type": "resumed"})

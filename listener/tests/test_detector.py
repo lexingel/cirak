@@ -27,3 +27,27 @@ def test_endless_noise_is_cut():
     blocks = int(31 * RATE / BLOCK)
     ev = run([True] * blocks)
     assert ev[:2][0] == "start" and ev[1][0] == "end"
+
+
+def test_steady_noise_stops_counting_as_speech():
+    from hearing import Loudness
+    loud = Loudness(threshold=0.015)
+    assert loud(0.1)  # speech in a quiet room
+    results = [loud(0.03) for _ in range(3000)]  # a fan for ~90 s
+    assert results[0] and not results[-1]
+    assert loud(0.2)  # talking over the fan still counts
+
+
+def test_quiet_room_keeps_plain_threshold():
+    from hearing import Loudness
+    loud = Loudness(threshold=0.015)
+    for _ in range(500):
+        loud(0.002)
+    assert loud(0.02) and not loud(0.01)
+
+
+def test_no_mic_does_not_crash():
+    import main
+    def broken():
+        raise OSError("no input device")
+    assert main.open_hearing(broken) is None

@@ -11,13 +11,14 @@ const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
 const LEVELS := ["low", "mid", "high"]
 const LANGS := ["en", "tr"]
+const PAUSE_ID := 5
 const TEXT := {
 	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
 		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
-		"close": "Close", "placeholder": "What are you working on?"},
+		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
-		"close": "Kapat", "placeholder": "Ne yapıyorsun?"},
+		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı"},
 }
 
 var apprentice: Apprentice
@@ -29,6 +30,7 @@ var mic_on := true
 var level := "mid"
 var lang := "en"
 var lang_menu := PopupMenu.new()
+var paused_by = null  ## null = listening; "" or an app name = paused by a call
 
 var _pressed := false
 var _dragging := false
@@ -38,6 +40,12 @@ var _press_win := Vector2i.ZERO
 
 static func ui(l: String, key: String) -> String:
 	return TEXT.get(l, TEXT["en"])[key]
+
+
+## Greyed-out menu line saying why the apprentice isn't listening.
+static func pause_text(l: String, who: String) -> String:
+	var t := ui(l, "paused")
+	return t if who.is_empty() else "%s (%s)" % [t, who]
 
 
 static func clamp_to_screen(pos: Vector2i, size: Vector2i, rect: Rect2i) -> Vector2i:
@@ -84,7 +92,9 @@ func _ready() -> void:
 	var link := Link.new()
 	add_child(link)
 	link.message.connect(apprentice.handle)
+	link.message.connect(_on_link_message)
 	link.connected.connect(func():
+		_set_paused(null)  # a fresh listener re-sends "paused" if a call is still on
 		link.send({"type": "mic", "on": mic_on})
 		link.send({"type": "frequency", "level": level})
 		link.send({"type": "lang", "lang": lang}))
@@ -185,6 +195,29 @@ func _on_menu(id: int) -> void:
 			get_tree().quit()
 
 
+func _on_link_message(msg: Dictionary) -> void:
+	match msg.get("type", ""):
+		"paused":
+			_set_paused(str(msg.get("who", "")))
+		"resumed":
+			_set_paused(null)
+
+
+func _set_paused(who) -> void:
+	paused_by = who
+	var idx := menu.get_item_index(PAUSE_ID)
+	if who == null:
+		if idx >= 0:
+			menu.remove_item(idx)
+		return
+	if idx < 0:
+		menu.add_item("", PAUSE_ID)
+		idx = menu.get_item_index(PAUSE_ID)
+		menu.set_item_disabled(idx, true)
+		menu.set_item_index(idx, 0)
+	_refresh_menu()
+
+
 func _set_level(l: String) -> void:
 	level = l
 	frequency_changed.emit(l)
@@ -210,6 +243,8 @@ func _refresh_menu() -> void:
 	for i in LANGS.size():
 		lang_menu.set_item_checked(i, LANGS[i] == lang)
 	text_box.placeholder_text = ui(lang, "placeholder")
+	if paused_by != null:
+		menu.set_item_text(menu.get_item_index(PAUSE_ID), pause_text(lang, paused_by))
 
 
 func _save() -> void:

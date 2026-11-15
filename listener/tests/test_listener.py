@@ -79,3 +79,9 @@ def test_language_message_reaches_transcribe_and_ask():
     assert seen == {"t": "tr", "a": "tr"}
     L.on_client({"type": "lang", "lang": "klingon"})
     assert L.lang == "tr"
+
+
+def test_pause_says_who_holds_the_mic():
+    L, sent, state, _ = make()
+    state["call"] = "Discord.exe"; L.tick()
+    assert sent == [{"type": "paused", "reason": "call", "who": "Discord.exe"}]

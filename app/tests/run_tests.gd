@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -104,3 +104,9 @@ func test_toss() -> void:
 	check(a.sprite.animation == "listening", "talking interrupts a toss")
 	check(not a.toss() and a.sprite.animation == "listening", "no toss unless working")
 	check(a.toss_timer.wait_time >= 45.0, "toss is rare")
+
+
+func test_pause_text() -> void:
+	check(MainScript.pause_text("en", "Discord.exe") == "Listening paused (Discord.exe)", "pause line names the app")
+	check(MainScript.pause_text("tr", "Discord.exe") == "Dinleme duraklatıldı (Discord.exe)", "pause line in Turkish")
+	check(MainScript.pause_text("en", "") == "Listening paused", "no name -> plain line")

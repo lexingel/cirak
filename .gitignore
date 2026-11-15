@@ -5,3 +5,4 @@ app/.godot/
 .venv/
 art_in/
 build/
+listener/listener.log

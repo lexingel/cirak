@@ -20,9 +20,17 @@ def own_exes() -> list[str]:
     return [sys.executable, getattr(sys, "_base_executable", sys.executable)]
 
 
-def mic_in_use_by_other(entries: dict[str, tuple[int, int]], self_exes) -> bool:
+def mic_user(entries: dict[str, tuple[int, int]], self_exes):
+    """Name of another app holding the mic right now (e.g. "Discord.exe"), or None."""
     mine = _own_keys(self_exes)
-    return any(start > 0 and stop == 0 and key.lower() not in mine for key, (start, stop) in entries.items())
+    for key, (start, stop) in entries.items():
+        if start > 0 and stop == 0 and key.lower() not in mine:
+            return key.split("#")[-1]
+    return None
+
+
+def mic_in_use_by_other(entries: dict[str, tuple[int, int]], self_exes) -> bool:
+    return mic_user(entries, self_exes) is not None
 
 
 def _read_children(key) -> dict[str, tuple[int, int]]:
