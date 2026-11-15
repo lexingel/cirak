@@ -13,7 +13,7 @@ Tools: `python hearing.py` prints 10 s of mic levels; `python ../tools/fake_list
 
 ## Commands
 
-Hold **Right Ctrl** while speaking (push-to-talk: works over music, no wake word), or start with
+Hold the command key (**Right Ctrl** by default; right-click menu → "Command key" to pick another) while speaking (push-to-talk: works over music, no wake word), or start with
 "Çırak, …" / "Apprentice, …" when it is quiet. Typing them in the text box works too.
 
 - Media: next / previous / pause / play / volume up / down / mute ("sonraki şarkı", "duraklat", "sesi kıs")

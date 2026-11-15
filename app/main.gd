@@ -8,6 +8,7 @@ signal frequency_changed(level: String)
 signal lang_changed(lang: String)
 signal mic_device_changed(name: String)
 signal edit_apps
+signal pick_ptt_key
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
@@ -28,12 +29,14 @@ const TEXT := {
 		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
 		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
 		"microphone": "Microphone", "default_mic": "Windows default",
-		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Hold Right Ctrl to give a command"},
+		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
+		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
 		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
-		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut için Sağ Ctrl'ye basılı tut"},
+		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
+		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)"},
 }
 
 var apprentice: Apprentice
@@ -50,6 +53,8 @@ var skin_menu := PopupMenu.new()
 var skin := ""
 var mics: Array = []  ## mic names the listener reported; the menu lists "" (default) + these
 var mic_device := ""
+var ptt_vk := 0xA3  ## push-to-talk key as a Windows key code; the listener picks and names it
+var ptt_name := ""  ## "" = Right Ctrl, never changed
 var paused_by = null  ## null = listening; "" or an app name = paused by a call
 
 var _pressed := false
@@ -66,6 +71,11 @@ static func ui(l: String, key: String) -> String:
 static func pause_text(l: String, who: String) -> String:
 	var t := ui(l, "paused")
 	return t if who.is_empty() else "%s (%s)" % [t, who]
+
+
+## Menu line for the push-to-talk key; clicking it picks a new one.
+static func ptt_label(l: String, name: String) -> String:
+	return ui(l, "ptt") % (ui(l, "ptt_default") if name.is_empty() else name)
 
 
 static func mic_label(l: String, name: String) -> String:
@@ -112,12 +122,13 @@ func _ready() -> void:
 	menu.add_submenu_node_item("", mic_menu, MIC_ID)
 	for i in SKINS.size():
 		skin_menu.add_radio_check_item("", i)
+		skin_menu.set_item_icon(i, Apprentice.preview(SKINS[i]))
+		skin_menu.set_item_icon_max_width(i, 32)
 	skin_menu.id_pressed.connect(func(id): _set_skin(SKINS[id]))
 	menu.add_child(skin_menu)
 	menu.add_submenu_node_item("", skin_menu, SKIN_ID)
 	menu.add_item("", APPS_ID)
 	menu.add_item("", PTT_ID)
-	menu.set_item_disabled(menu.get_item_index(PTT_ID), true)  # a hint, not a button
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -127,6 +138,8 @@ func _ready() -> void:
 	level = cfg.get_value("prefs", "frequency", "mid")
 	lang = cfg.get_value("prefs", "lang", "en")
 	mic_device = cfg.get_value("prefs", "mic_device", "")
+	ptt_vk = cfg.get_value("prefs", "ptt_vk", 0xA3)
+	ptt_name = cfg.get_value("prefs", "ptt_name", "")
 	_refresh_menu()
 
 	var link := Link.new()
@@ -138,7 +151,9 @@ func _ready() -> void:
 		link.send({"type": "mic", "on": mic_on})
 		link.send({"type": "frequency", "level": level})
 		link.send({"type": "lang", "lang": lang})
-		link.send({"type": "mic_device", "name": mic_device}))
+		link.send({"type": "mic_device", "name": mic_device})
+		link.send({"type": "ptt_key", "vk": ptt_vk}))
+	pick_ptt_key.connect(func(): link.send({"type": "pick_ptt_key"}))
 	mic_device_changed.connect(func(n): link.send({"type": "mic_device", "name": n}))
 	edit_apps.connect(func(): link.send({"type": "edit_apps"}))
 	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
@@ -241,6 +256,9 @@ func _on_menu(id: int) -> void:
 			get_tree().quit()
 		APPS_ID:
 			edit_apps.emit()  # the listener opens its apps.json in Notepad
+		PTT_ID:
+			apprentice.handle({"type": "say", "text": ui(lang, "ptt_pick")})
+			pick_ptt_key.emit()  # the listener waits for the key and answers with "ptt_key"
 
 
 func _on_link_message(msg: Dictionary) -> void:
@@ -251,6 +269,11 @@ func _on_link_message(msg: Dictionary) -> void:
 			_set_paused(null)
 		"mics":
 			mics = msg.get("list", [])
+			_refresh_menu()
+		"ptt_key":
+			ptt_vk = int(msg.get("vk", 0xA3))  # JSON numbers arrive as floats
+			ptt_name = str(msg.get("name", ""))
+			_save()
 			_refresh_menu()
 
 
@@ -321,7 +344,7 @@ func _refresh_menu() -> void:
 	for i in SKINS.size():
 		skin_menu.set_item_text(i, SKIN_NAMES.get(lang, SKIN_NAMES["en"])[i])
 		skin_menu.set_item_checked(i, SKINS[i] == skin)
-	menu.set_item_text(menu.get_item_index(PTT_ID), ui(lang, "ptt"))
+	menu.set_item_text(menu.get_item_index(PTT_ID), ptt_label(lang, ptt_name))
 	mic_menu.clear()
 	var names := _mic_names()
 	for i in names.size():
@@ -339,6 +362,8 @@ func _save() -> void:
 	cfg.set_value("prefs", "lang", lang)
 	cfg.set_value("prefs", "mic_device", mic_device)
 	cfg.set_value("prefs", "skin", skin)
+	cfg.set_value("prefs", "ptt_vk", ptt_vk)
+	cfg.set_value("prefs", "ptt_name", ptt_name)
 	cfg.save(SETTINGS)
 
 

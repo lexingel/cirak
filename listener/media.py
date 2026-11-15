@@ -14,14 +14,12 @@ def press(vk: int) -> None:
 
 
 def plan(action: str, playing: bool) -> str:
-    """What to do: a key name, "volume", or a reply key when nothing should happen.
-    There is only a play/pause toggle key, so the speaker meter tells us which way it goes."""
+    """What to do: a key name or "volume". Pause/play always press the one toggle key: the user
+    asked for it, and the speaker meter can be wrong (quiet passage, a game making sound)."""
     if action in ("next", "prev"):
         return action
-    if action == "pause":
-        return "toggle" if playing else "nothing_playing"
-    if action == "play":
-        return "already" if playing else "toggle"
+    if action in ("pause", "play"):
+        return "toggle"
     return "volume"
 
 
@@ -47,10 +45,10 @@ def volume(action: str) -> None:
 def run(action: str, playing: bool) -> str:
     """Does it; returns the reply key for the apprentice's bubble."""
     p = plan(action, playing)
-    if p in KEYS:
-        press(KEYS[p])
-        return action
     if p == "volume":
         volume(action)
         return action
-    return p
+    press(KEYS[p])
+    if p == "toggle":  # the meter only picks the words: sound before the press means it paused
+        return "pause" if playing else "play"
+    return action

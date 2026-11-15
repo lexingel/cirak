@@ -44,7 +44,7 @@ apprentice works (typing) meanwhile. Everything you say is turned into text on t
 
 - Click the apprentice to type, drag to move, right-click for the menu (microphone, language,
   how often it asks, which apps it may open).
-- Hold Right Ctrl while speaking to give a command: "next song", "pause", "volume down",
+- Hold Right Ctrl (or the key you pick in the menu) while speaking to give a command: "next song", "pause", "volume down",
   "open Spotify" (only apps on your list), "ask Claude: ..." (if Claude Code is installed).
   Turkish works too: "sonraki şarkı", "duraklat", "Spotify'ı aç", "Claude'a sor: ...".
 - Better questions (optional): install Ollama (ollama.com) and run `ollama pull qwen2.5:3b`.

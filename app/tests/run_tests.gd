@@ -144,7 +144,8 @@ func test_say() -> void:
 func test_command_menu() -> void:
 	var m = MainScript.new()
 	check(MainScript.ui("tr", "apps").begins_with("Açabileceğim"), "app list menu text")
-	check(MainScript.ui("en", "ptt").contains("Right Ctrl"), "push-to-talk hint names the key")
+	check(MainScript.ptt_label("en", "").contains("Right Ctrl"), "command key defaults to Right Ctrl")
+	check(MainScript.ptt_label("tr", "F8").contains("F8"), "command key line names the picked key")
 	m.free()
 
 
@@ -155,6 +156,10 @@ func test_skins() -> void:
 		for spec in a.ANIMS.values() + [a.TOSS]:
 			check(a.sprite.sprite_frames.get_frame_count(spec[0]) >= 2, "%s has %s frames" % [s, spec[0]])
 	check(MainScript.SKIN_NAMES["tr"].size() == MainScript.SKINS.size(), "every look has a Turkish name")
+	for s in MainScript.SKINS:
+		var icon: Texture2D = Apprentice.preview(s)
+		check(icon != null and icon.get_width() == Apprentice.FRAME, "look %s has a menu icon" % s)
+	check(Apprentice.preview("missing") != null, "a missing look falls back to the wizard's icon")
 	check(MainScript.SKIN_NAMES["en"].size() == MainScript.SKINS.size(), "every look has an English name")
 	var a2 = new_apprentice()
 	a2.handle({"type": "speech_start"})

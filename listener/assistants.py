@@ -43,14 +43,16 @@ def ask_claude(text: str, lang: str = "en", run=subprocess.run, which=shutil.whi
     return short(out)
 
 
-def task_link(text: str, cwd: str) -> str:
-    """Opens Claude Code in a terminal with the task typed in but NOT sent: the user reads it, presses Enter."""
-    return "claude-cli://open?cwd=" + quote(cwd, safe="") + "&q=" + quote(text[:5000], safe="")
+def task_link(text: str, cwd: str = "") -> str:
+    """Opens Claude Code in a terminal with the task typed in but NOT sent: the user reads it, presses Enter.
+    No cwd: Claude Code picks its own default folder (today the home folder)."""
+    where = "cwd=" + quote(cwd, safe="") + "&" if cwd else ""
+    return "claude-cli://open?" + where + "q=" + quote(text[:5000], safe="")
 
 
 def open_claude_task(text: str, cwd: str = "") -> bool:
     try:
-        os.startfile(task_link(text, cwd or str(__import__("pathlib").Path.home())))
+        os.startfile(task_link(text, cwd))
         return True
     except OSError:
         return False

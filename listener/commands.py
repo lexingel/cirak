@@ -32,12 +32,12 @@ REPLIES = {
            "up": "Louder", "down": "Quieter", "mute": "Muted", "unknown": "Sorry, I didn't get that",
            "opening": "Opening {}", "no_app": "{} isn't on my app list", "asking": "Asking Claude: {}",
            "no_claude": "I can't reach Claude", "task": "Claude is open, press Enter to send",
-           "nothing_playing": "Nothing is playing", "already": "Already playing"},
+           "ptt_set": "Command key: {}", "ptt_same": "Command key not changed"},
     "tr": {"next": "Sonraki şarkı", "prev": "Önceki şarkı", "pause": "Duraklattım", "play": "Çalıyor",
            "up": "Sesi açtım", "down": "Sesi kıstım", "mute": "Sessize aldım", "unknown": "Anlamadım",
            "opening": "{} açılıyor", "no_app": "{} uygulama listemde yok", "asking": "Claude'a soruyorum: {}",
            "no_claude": "Claude'a ulaşamadım", "task": "Claude açıldı, göndermek için Enter'a bas",
-           "nothing_playing": "Çalan bir şey yok", "already": "Zaten çalıyor"},
+           "ptt_set": "Komut tuşu: {}", "ptt_same": "Komut tuşu değişmedi"},
 }
 
 

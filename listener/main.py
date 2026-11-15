@@ -20,6 +20,7 @@ import websockets
 import apps
 import assistants
 import commands
+import keys
 import media
 import mic_guard
 from asker import ask, ask_local
@@ -28,7 +29,6 @@ from listener_core import Listener
 
 PORT = 47613
 IDLE_EXIT = 10  # seconds without the app -> quit, so no orphan mic stays open
-PTT_KEY = 0xA3  # right Ctrl: held = push-to-talk (a command, heard even over music)
 # Browsers always send an Origin header; the Godot app sends none. Only Origin-less clients may connect.
 SERVE_KW = {"origins": [None]}
 
@@ -42,18 +42,6 @@ def quit_cleanly(hearing, exit=os._exit):
     except Exception as e:
         print("listener: closing mic:", e, file=sys.stderr)
     exit(0)
-
-
-def ptt_held() -> bool:
-    import ctypes
-    return bool(ctypes.windll.user32.GetAsyncKeyState(PTT_KEY) & 0x8000)
-
-
-def other_key_down() -> bool:
-    """Any key or mouse button besides Right Ctrl: Right Ctrl+C is a shortcut, not push-to-talk."""
-    import ctypes
-    get = ctypes.windll.user32.GetAsyncKeyState
-    return any(get(vk) & 0x8000 for vk in range(1, 0xFF) if vk not in (PTT_KEY, 0x11))  # 0x11: any Ctrl
 
 
 def make_actions(speaker_busy, spawn):
@@ -128,10 +116,19 @@ async def run():
     def make_hearing():
         return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
                                             on_end=lambda audio: work.put((core.speech_end, audio)),
-                                            device=core.device, ptt=ptt_held,
+                                            device=core.device, ptt=lambda: keys.key_down(core.ptt_vk),
                                             on_ptt_start=lambda: work.put((core.ptt_start, None)),
                                             on_ptt_end=lambda audio: work.put((core.ptt_end, audio)),
-                                            chord=other_key_down))
+                                            chord=lambda: keys.other_key_down(core.ptt_vk)))
+
+    def pick_key():
+        vk = keys.wait_for_key()
+        if vk is None:
+            core.say(commands.reply(core.lang, "ptt_same"))
+            return
+        core.ptt_vk, name = vk, keys.key_name(vk)
+        send({"type": "ptt_key", "vk": vk, "name": name})
+        core.say(commands.reply(core.lang, "ptt_set", name))
 
     hearing = make_hearing()
     device = core.device
@@ -155,6 +152,9 @@ async def run():
                     quit_cleanly(hearing)
                 if isinstance(msg, dict) and msg.get("type") == "edit_apps":  # menu: "App list..."
                     work.put((apps.edit, None))
+                    continue
+                if isinstance(msg, dict) and msg.get("type") == "pick_ptt_key":  # menu: "Command key..."
+                    threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
                     continue
                 work.put((core.on_client, msg))
         except websockets.ConnectionClosed:

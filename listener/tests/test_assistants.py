@@ -26,3 +26,7 @@ def test_task_link_is_prefilled_not_sent():
     link = a.task_link("fix the tests & push", r"D:\proj")
     assert link.startswith("claude-cli://open?cwd=D%3A%5Cproj&q=")
     assert "fix%20the%20tests%20%26%20push" in link
+
+
+def test_task_link_without_folder_lets_claude_choose():
+    assert a.task_link("hi") == "claude-cli://open?q=hi"

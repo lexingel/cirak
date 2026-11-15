@@ -19,6 +19,7 @@ class Listener:
         self._heard = False
         self.lang = "en"
         self.device = ""  # chosen mic name, "" = Windows default
+        self.ptt_vk = 0xA3  # push-to-talk key (Windows key code), Right Ctrl until the app sends its own
 
     @property
     def listening(self) -> bool:
@@ -120,6 +121,8 @@ class Listener:
             self.mic_on = bool(msg.get("on"))
         elif t == "lang" and msg.get("lang") in ("en", "tr"):
             self.lang = msg["lang"]
+        elif t == "ptt_key" and isinstance(msg.get("vk"), int) and 0 < msg["vk"] < 0xFF and msg["vk"] != 0x1B:
+            self.ptt_vk = msg["vk"]
         elif t == "mic_device":
             self.device = str(msg.get("name", ""))
         elif t == "frequency":

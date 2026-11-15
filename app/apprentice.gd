@@ -62,9 +62,7 @@ func _load_frames() -> SpriteFrames:
 		sf.add_animation(name)
 		sf.set_animation_speed(name, spec[1])
 		sf.set_animation_loop(name, spec[2])
-		var path := art_dir(skin) + "apprentice_%s.png" % name
-		# editor: read the png itself (fresh art needs no reimport); export: the imported texture
-		var img: Image = Image.load_from_file(ProjectSettings.globalize_path(path)) if OS.has_feature("editor") else load(path).get_image()
+		var img := strip(skin, name)
 		if img == null:
 			continue
 		var tex := ImageTexture.create_from_image(img)
@@ -74,6 +72,26 @@ func _load_frames() -> SpriteFrames:
 			at.region = Rect2(i * FRAME, 0, FRAME, FRAME)
 			sf.add_frame(name, at)
 	return sf
+
+
+## One state's strip for a look, or null if it is missing.
+static func strip(s: String, name: String) -> Image:
+	var path := art_dir(s) + "apprentice_%s.png" % name
+	if OS.has_feature("editor"):  # read the png itself: fresh art needs no reimport
+		return Image.load_from_file(ProjectSettings.globalize_path(path)) if FileAccess.file_exists(path) else null
+	var tex = load(path) if ResourceLoader.exists(path) else null  # export: the imported texture
+	return tex.get_image() if tex else null
+
+
+## First listening frame of a look, for the menu (the wizard's if that look's art is missing).
+static func preview(s: String) -> Texture2D:
+	var img := strip(s, "listening")
+	if img == null:
+		img = strip("", "listening")
+	var at := AtlasTexture.new()
+	at.atlas = ImageTexture.create_from_image(img)
+	at.region = Rect2(0, 0, FRAME, FRAME)
+	return at
 
 
 func handle(msg: Dictionary) -> void:
