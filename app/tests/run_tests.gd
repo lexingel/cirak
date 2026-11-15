@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -181,3 +181,15 @@ func test_skins() -> void:
 	a2.handle({"type": "speech_start"})
 	a2.set_skin("okcu")
 	check(a2.state == a2.State.LISTENING and a2.sprite.animation == "listening", "pose survives a change of clothes")
+
+
+func test_step_aside() -> void:
+	var size := Vector2i(260, 220)
+	check(MainScript.should_hide([0, 0, 1920, 1080], Vector2i(1600, 800), size, 0, 0), "fullscreen on its monitor -> hide")
+	check(not MainScript.should_hide([1920, 0, 4480, 1440], Vector2i(1600, 800), size, 0, 0), "fullscreen on the other monitor -> stay")
+	check(not MainScript.should_hide(null, Vector2i(1600, 800), size, 0, 0), "nothing fullscreen -> stay")
+	check(MainScript.should_hide(null, Vector2i.ZERO, size, 1000, 5000), "asked to hide -> hidden until then")
+	check(not MainScript.should_hide(null, Vector2i.ZERO, size, 6000, 5000), "hour over -> back")
+	check(MainScript.mic_state(true, null, false) == "on", "mic dot: listening")
+	check(MainScript.mic_state(true, "Discord.exe", false) == "paused", "mic dot: call")
+	check(MainScript.mic_state(false, null, false) == "off" and MainScript.mic_state(true, null, true) == "off", "mic dot: off or blocked")

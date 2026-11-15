@@ -15,6 +15,8 @@ RULES = [
     ("ask_claude", re.compile(rf"^ask\s+{CLAUDE}\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^{CLAUDE}\s+(iş\s+ver|yaptır|söyle)\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^tell\s+{CLAUDE}\s+(to\s+)?(?P<arg>.+)$")),
+    ("show", re.compile(r"\b(geri\s+gel|ortaya\s+çık|görün|come\s+back|show\s+yourself)\b")),  # before "back"
+    ("hide", re.compile(r"\b(saklan|gizlen|kaybol|hide)\b")),
     ("unmute", re.compile(r"\bsesi\s+geri\s+aç|\bsessizden\s+çık|\bunmute\b")),
     ("up", re.compile(r"\bsesi\s+(aç|yükselt|art[ıt]?ır)|\bvolume\s+up\b|\blouder\b|\bturn\s+it\s+up\b")),
     ("down", re.compile(r"\bsesi\s+(kıs|kız|azalt|düşür)|\bvolume\s+down\b|\bquieter\b|\bturn\s+it\s+down\b")),
@@ -34,6 +36,7 @@ REPLIES = {
            "up": "Louder", "down": "Quieter", "mute": "Muted", "unknown": "Sorry, I didn't get that",
            "opening": "Opening {}", "no_app": "{} isn't on my app list", "asking": "Asking Claude: {}",
            "no_claude": "I can't reach Claude", "task": "Claude is open, press Enter to send",
+           "back": "I'm back", "online": "{}\n(Claude, online)",
            "ptt_set": "Command key: {}", "ptt_same": "Command key not changed", "unmute": "Sound on",
            "cant_open": "I couldn't open {}", "ready": "Ready", "pulling": "Downloading the question model: {}%",
            "pulled": "Question model ready, my questions just got better", "pull_failed": "I couldn't download the question model",
@@ -43,6 +46,7 @@ REPLIES = {
            "up": "Sesi açtım", "down": "Sesi kıstım", "mute": "Sessize aldım", "unknown": "Anlamadım",
            "opening": "{} açılıyor", "no_app": "{} uygulama listemde yok", "asking": "Claude'a soruyorum: {}",
            "no_claude": "Claude'a ulaşamadım", "task": "Claude açıldı, göndermek için Enter'a bas",
+           "back": "Buradayım", "online": "{}\n(Claude, internetten)",
            "ptt_set": "Komut tuşu: {}", "ptt_same": "Komut tuşu değişmedi", "unmute": "Sesi geri açtım",
            "cant_open": "{} açılamadı", "ready": "Hazırım", "pulling": "Soru modeli iniyor: %{}",
            "pulled": "Soru modeli hazır, sorularım artık daha iyi", "pull_failed": "Soru modelini indiremedim",
@@ -73,7 +77,7 @@ def parse(text: str, ptt: bool = False):
         if hit:
             if intent in MEDIA:
                 return ("media", intent)
-            arg = hit.group("arg").strip()
+            arg = (hit.groupdict().get("arg") or "").strip()  # hide/show take none
             if intent == "ask_claude":  # keep the user's own punctuation in what is sent
                 arg = _tail(raw, arg)
             return (intent, arg)

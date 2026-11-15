@@ -25,6 +25,8 @@ const BRAIN_ID := 10
 const MODEL_ID := 11
 const MICPERM_ID := 12
 const HELP_ID := 13
+const HIDE_ID := 14
+const HIDE_SECONDS := 3600
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
 const MODEL_NOTE := {
@@ -50,7 +52,8 @@ const TEXT := {
 		"mic_blocked": "Windows microphone permission is off: open Settings...",
 		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
-		"first_hint": "Right-click me for the microphone, language and what I can do"},
+		"first_hint": "Right-click me for the microphone, language and what I can do",
+		"hide": "Hide for an hour (say \"Apprentice, come back\")"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
@@ -62,7 +65,8 @@ const TEXT := {
 		"mic_blocked": "Windows mikrofon izni kapalı: Ayarlar'ı aç...",
 		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
-		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla"},
+		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla",
+		"hide": "1 saat saklan (\"Çırak, geri gel\" de)"},
 }
 
 var apprentice: Apprentice
@@ -86,6 +90,9 @@ var brain := "ok"  ## questions: "ok" (local model), "no_model", "no_ollama" (fr
 var model := ""  ## the question model the listener uses (it keeps the choice in model.txt)
 var model_menu := PopupMenu.new()
 var _told_mic_blocked := false
+var mic_blocked := false
+var full_rect = null  ## [l, t, r, b] of a monitor a fullscreen app covers, or null
+var hidden_until := 0  ## Time.get_ticks_msec() until which the user asked it out of sight
 
 var _pressed := false
 var _dragging := false
@@ -165,6 +172,7 @@ func _ready() -> void:
 	menu.add_item("", APPS_ID)
 	menu.add_item("", PTT_ID)
 	menu.add_item("", HELP_ID)
+	menu.add_item("", HIDE_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -301,6 +309,8 @@ func _on_menu(id: int) -> void:
 			var page := help_file(lang)
 			if page != "":
 				OS.shell_open(ProjectSettings.globalize_path(page))
+		HIDE_ID:
+			_hide_for(HIDE_SECONDS)
 		MICPERM_ID:
 			OS.shell_open("ms-settings:privacy-microphone")  # the user turns it on; we never change it
 		BRAIN_ID:
@@ -328,6 +338,14 @@ func _on_link_message(msg: Dictionary) -> void:
 			model = str(msg.get("model", model))
 			_set_brain(str(msg.get("state", "ok")))
 			_refresh_menu()  # ticks the model even when the state didn't change
+		"fullscreen":
+			full_rect = msg.get("rect")
+			_update_visibility()
+		"hide":
+			_hide_for(int(msg.get("seconds", HIDE_SECONDS)))
+		"show":
+			hidden_until = 0
+			_update_visibility()
 		"mic_blocked":
 			_set_mic_blocked(bool(msg.get("blocked", false)))
 		"ptt_key":
@@ -339,6 +357,7 @@ func _on_link_message(msg: Dictionary) -> void:
 
 func _set_paused(who) -> void:
 	paused_by = who
+	queue_redraw()
 	var idx := menu.get_item_index(PAUSE_ID)
 	if who == null:
 		if idx >= 0:
@@ -394,6 +413,8 @@ func _set_brain(state: String) -> void:
 
 ## Windows' mic privacy switch is off: a menu line to Settings, and the apprentice says it once.
 func _set_mic_blocked(blocked: bool) -> void:
+	mic_blocked = blocked
+	queue_redraw()
 	var idx := menu.get_item_index(MICPERM_ID)
 	if not blocked:
 		if idx >= 0:
@@ -475,6 +496,8 @@ func _refresh_menu() -> void:
 		menu.set_item_text(menu.get_item_index(MICPERM_ID), ui(lang, "mic_blocked"))
 	menu.set_item_text(menu.get_item_index(MODEL_ID), ui(lang, "model"))
 	menu.set_item_text(menu.get_item_index(HELP_ID), ui(lang, "help"))
+	menu.set_item_text(menu.get_item_index(HIDE_ID), ui(lang, "hide"))
+	queue_redraw()  # the mic dot
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
 		model_menu.set_item_checked(i, MODELS[i] == model)
@@ -494,6 +517,9 @@ func _save() -> void:
 
 ## Clicks outside the apprentice (and the bubble / text box when open) fall through to the desktop.
 func _update_passthrough() -> void:
+	if not visible:  # out of sight: a 1 px corner, every click goes to the game or desktop
+		DisplayServer.window_set_mouse_passthrough(PackedVector2Array([Vector2.ZERO, Vector2(1, 0), Vector2(0, 1)]))
+		return
 	var top := Rect2()
 	if apprentice.bubble.visible:
 		top = Rect2(apprentice.position + apprentice.bubble.position, apprentice.bubble.size)
@@ -501,3 +527,51 @@ func _update_passthrough() -> void:
 		var box := Rect2(text_box.position, text_box.size)
 		top = box if not top.has_area() else top.merge(box)
 	DisplayServer.window_set_mouse_passthrough(click_polygon(apprentice.sprite_rect(), top))
+
+
+## Should the apprentice step aside? A fullscreen app on its monitor, or the user said "hide".
+static func should_hide(rect, win_pos: Vector2i, win_size: Vector2i, now: int, until: int) -> bool:
+	if now < until:
+		return true
+	if rect == null or (rect as Array).size() != 4:
+		return false
+	var c := win_pos + win_size / 2
+	return c.x >= rect[0] and c.x < rect[2] and c.y >= rect[1] and c.y < rect[3]
+
+
+func _hide_for(seconds: int) -> void:
+	hidden_until = Time.get_ticks_msec() + seconds * 1000
+	get_tree().create_timer(seconds + 0.5).timeout.connect(_update_visibility)
+	_update_visibility()
+
+
+func _update_visibility() -> void:
+	var win := get_window()
+	var hide := should_hide(full_rect, win.position, win.size, Time.get_ticks_msec(), hidden_until)
+	if hide == not visible:
+		return
+	visible = not hide
+	if hide and text_box.visible:
+		_close_text_box()
+	_update_passthrough()
+
+
+## The small dot by the apprentice: "on" listening, "paused" (a call), "off" (mic off or blocked).
+static func mic_state(on: bool, paused, blocked: bool) -> String:
+	if not on or blocked:
+		return "off"
+	return "on" if paused == null else "paused"
+
+
+const MIC_COLORS := {"on": Color("4caf50"), "paused": Color("d9a441"), "off": Color("c0392b")}
+
+
+func _draw() -> void:
+	var r := apprentice.sprite_rect()
+	var p := Vector2(r.end.x - 26, r.end.y - 16)  # just right of the cauldron
+	var st := mic_state(mic_on, paused_by, mic_blocked)
+	draw_circle(p, 5.0, Color("2a2230"))
+	draw_circle(p, 3.5, MIC_COLORS[st])
+	if st == "off":
+		draw_line(p + Vector2(-2, -2), p + Vector2(2, 2), Color.WHITE, 1.0)
+		draw_line(p + Vector2(2, -2), p + Vector2(-2, 2), Color.WHITE, 1.0)

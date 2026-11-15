@@ -24,6 +24,7 @@ import commands
 import keys
 import media
 import mic_guard
+import screen
 from asker import ask, ask_local
 from hearing import HOTWORDS, Hearing, input_mics, transcribe
 from listener_core import Listener
@@ -45,7 +46,7 @@ def quit_cleanly(hearing, exit=os._exit):
     exit(0)
 
 
-def make_actions(speaker_busy, spawn):
+def make_actions(speaker_busy, spawn, send=lambda m: None):
     """What each spoken command does. Every fn(arg, lang, say) returns the bubble text."""
     def do_media(action, lang, say):
         return commands.reply(lang, media.run(action, speaker_busy()))
@@ -63,14 +64,24 @@ def make_actions(speaker_busy, spawn):
 
     def do_ask(text, lang, say):
         def later():  # 5-20 s: off the worker thread so listening goes on
-            say(assistants.ask_claude(text, lang) or commands.reply(lang, "no_claude"))
+            answer = assistants.ask_claude(text, lang)
+            say(commands.reply(lang, "online", answer) if answer else commands.reply(lang, "no_claude"))
         spawn(later)
         return commands.reply(lang, "asking", text)
 
     def do_task(text, lang, say):
         return commands.reply(lang, "task" if assistants.open_claude_task(text) else "no_claude")
 
-    return {"media": do_media, "open": do_open, "ask_claude": do_ask, "claude_task": do_task}
+    def do_hide(_, lang, say):  # "Çırak, saklan": an hour out of sight, "geri gel" brings it back
+        send({"type": "hide", "seconds": 3600})
+        return ""
+
+    def do_show(_, lang, say):
+        send({"type": "show"})
+        return commands.reply(lang, "back")
+
+    return {"media": do_media, "open": do_open, "ask_claude": do_ask, "claude_task": do_task,
+            "hide": do_hide, "show": do_show}
 
 
 def open_hearing(make):
@@ -97,7 +108,8 @@ async def run():
                     call_busy=lambda: mic_guard.mic_user(mic_guard.read_mic_entries(), mic_guard.own_exes()),
                     speaker_busy=mic_guard.speaker_busy,
                     actions=make_actions(mic_guard.speaker_busy,
-                                         lambda fn: threading.Thread(target=fn, daemon=True).start()),
+                                         lambda fn: threading.Thread(target=fn, daemon=True).start(),
+                                         lambda m: send(m)),
                     transcribe_cmd=lambda a, lang: transcribe(a, lang, HOTWORDS))
     core.mic_on = False  # the mic stays shut until the app sends its saved setting (it does on connect)
 
@@ -113,7 +125,7 @@ async def run():
     threading.Thread(target=worker, daemon=True).start()
     work.put((apps.index, None))  # PowerShell, up to 20 s: now, not when the first "open" waits on it
     # state: None until Ollama was tried; mic: None until the privacy switches were read
-    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None}
+    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None, "full": None}
 
     def brain_msg():
         return {"type": "brain", "state": warm["state"], "model": asker.LOCAL_MODEL}
@@ -189,6 +201,7 @@ async def run():
             await ws.send(json.dumps(brain_msg()))
         if warm["mic"] is not None:
             await ws.send(json.dumps({"type": "mic_blocked", "blocked": warm["mic"]}))
+        await ws.send(json.dumps({"type": "fullscreen", "rect": warm["full"]}))
         try:
             async for raw in ws:
                 try:
@@ -226,6 +239,15 @@ async def run():
             warm["at"] += 1
             if warm["state"] not in (None, "ok") and not warm["pulling"] and warm["at"] % 60 == 0:  # Ollama installed later
                 work.put((warm_model, None))
+            if warm["at"] % 2 == 0:  # a game or video went fullscreen: the app steps aside on that monitor
+                try:
+                    full = screen.fullscreen_rect()
+                except Exception as e:
+                    print("listener: fullscreen check:", e, file=sys.stderr)
+                    full = None
+                if full != warm["full"]:
+                    warm["full"] = full
+                    send({"type": "fullscreen", "rect": full})
             if warm["at"] % 10 == 0:  # switched in Settings while running
                 work.put((check_mic, None))
             want = core.listening

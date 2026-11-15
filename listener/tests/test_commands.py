@@ -69,3 +69,11 @@ def test_wake_word_is_a_word_not_a_prefix():
 def test_unmute():
     for t in ("sesi geri aç", "sessizden çık", "unmute"):
         assert c.parse(t, ptt=True) == ("media", "unmute"), t
+
+
+def test_hide_and_show():
+    for t in ["Çırak, saklan", "çırak gizlen", "Apprentice, hide"]:
+        assert c.parse(t) == ("hide", ""), t
+    for t in ["Çırak, geri gel", "Apprentice, come back", "çırak ortaya çık"]:
+        assert c.parse(t) == ("show", ""), t
+    assert c.parse("apprentice go back") == ("media", "prev")  # "come back" only, not "back"

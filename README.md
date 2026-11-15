@@ -5,14 +5,23 @@ A tiny wizard apprentice who sits on your desktop and keeps you company while yo
 curious question. Hold a key and talk to skip a song, turn the volume down, open an app or ask
 Claude something.
 
+Many people with ADHD find it easier to start and to stay on a task when someone is nearby; the
+research on body doubling is still small, so take it as a gentle helper, not a treatment.
+
 ![The apprentice stirring its cauldron](docs/shot_toss.png)
 
 - **Everything you say stays on your PC.** Speech is turned into text locally (Whisper); questions
   come from a local model (Ollama, optional) or a built-in list.
 - **Voice commands:** media keys, volume, apps from your own list, "ask Claude" / "tell Claude"
-  (if Claude Code is installed). Push-to-talk works over music.
+  (if Claude Code is installed; only these two go online, and only the words after the command).
+  Push-to-talk works over music.
 - **Six looks:** wizard, blacksmith, healer, scribe, archer, cook.
 - **English and Turkish.**
+- **Light on your PC:** idle it measured ~0% CPU for the app and ~0.1% for the listener, ~380 MB
+  RAM together (the speech model). Turning speech into text takes a short burst of CPU. The optional
+  question model runs in Ollama: about its download size in RAM while loaded.
+- **Stays out of the way:** steps aside when a game or video goes fullscreen on its screen;
+  "Apprentice, hide" for an hour. A small dot shows the mic: green listening, yellow paused, red off.
 
 ## Download
 

@@ -105,3 +105,12 @@ diske yazılmaz. Yeni her şey **kullanıcı isteyince** çalışır.
 
 Faz 1 ile 2.3 bir arada → **v0.2.0** (imza gelirse imzalı). Faz 2.1-2.2 + 3.1 → **v0.3.0**.
 Faz 4 kararlardan sonra.
+
+## Durum
+
+- **Faz 1 bitti (2026-11-15).**
+  - Ölçüm (`tools/measure.py`, boşta 60 s): Cirak.exe ~%0 CPU / 129 MB, listener ~%0,07 CPU / 250 MB. FPS sınırına gerek kalmadı.
+  - Tam ekranda gizlenme (`listener/screen.py`, 2 s'de bir), "Çırak, saklan / geri gel" + menüde "1 saat saklan".
+  - Mikrofon noktası (yeşil/sarı/kırmızı), Claude cevabında "(Claude, internetten)", yardım ve README güncellendi.
+  - Canlı denendi: tam ekran mesajı, saklan/geri gel, nokta ekran görüntüsünde.
+  - K2 kararı bekleniyor: gizliyken dinleme şimdilik sürüyor.
