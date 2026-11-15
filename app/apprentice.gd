@@ -47,7 +47,9 @@ func _load_frames() -> SpriteFrames:
 		sf.add_animation(name)
 		sf.set_animation_speed(name, spec[1])
 		sf.set_animation_loop(name, spec[2])
-		var img := Image.load_from_file(ProjectSettings.globalize_path("res://art/apprentice_%s.png" % name))
+		var path := "res://art/apprentice_%s.png" % name
+		# editor: read the png itself (fresh art needs no reimport); export: the imported texture
+		var img: Image = Image.load_from_file(ProjectSettings.globalize_path(path)) if OS.has_feature("editor") else load(path).get_image()
 		if img == null:
 			continue
 		var tex := ImageTexture.create_from_image(img)

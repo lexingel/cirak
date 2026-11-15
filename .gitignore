@@ -4,3 +4,4 @@ __pycache__/
 app/.godot/
 .venv/
 art_in/
+build/

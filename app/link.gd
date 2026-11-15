@@ -33,7 +33,9 @@ func _ready() -> void:
 
 func _launch() -> void:
 	_since_launch = 0.0
-	var listener := ProjectSettings.globalize_path("res://").path_join("../listener").simplify_path()
+	# editor run: app/ next to listener/; exported build: build/Cirak.exe next to listener/
+	var base := ProjectSettings.globalize_path("res://") if OS.has_feature("editor") else OS.get_executable_path().get_base_dir()
+	var listener := base.path_join("../listener").simplify_path()
 	var py := listener.path_join(".venv/Scripts/pythonw.exe")
 	if not FileAccess.file_exists(py):
 		py = "pythonw"
