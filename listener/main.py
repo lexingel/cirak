@@ -18,6 +18,7 @@ if sys.stderr is None:
 import websockets
 
 import apps
+import asker
 import assistants
 import commands
 import keys
@@ -111,13 +112,26 @@ async def run():
 
     threading.Thread(target=worker, daemon=True).start()
     work.put((apps.index, None))  # PowerShell, up to 20 s: now, not when the first "open" waits on it
-    warm = {"ok": None, "at": 0, "whisper": False}  # ok: None until Ollama was tried once
+    warm = {"state": None, "at": 0, "whisper": False, "pulling": False}  # state: None until Ollama was tried
 
     def warm_model():  # load the local model now, not on the first question; retried while Ollama boots
-        ok = ask_local("warming up", "en") is not None
-        if ok != warm["ok"]:
-            warm["ok"] = ok
-            send({"type": "brain", "local": ok})  # the menu says when questions come from the list
+        state = asker.brain_state()
+        if state == "ok" and ask_local("warming up", "en") is None:
+            state = "no_ollama"  # listed but not answering
+        if state != warm["state"]:
+            warm["state"] = state
+            send({"type": "brain", "state": state})  # the menu offers Ollama / the model download
+
+    def pull_model():  # menu: "download the question model"; asked for by the user, ~1 GB
+        if warm["pulling"]:
+            return
+        warm["pulling"] = True
+        core.say(commands.reply(core.lang, "pulling", 0))
+        ok = asker.pull(lambda pct: core.say(commands.reply(core.lang, "pulling", pct)))
+        warm["pulling"] = False
+        core.say(commands.reply(core.lang, "pulled" if ok else "pull_failed"))
+        if ok:
+            warm_model()
 
     def warm_whisper():  # after the app sent its language: the first-run bubbles must reach it, in its words
         fresh = not any((DATA / "models").glob("models--Systran--faster-whisper-small/snapshots/*/model.bin"))
@@ -153,8 +167,8 @@ async def run():
             await ws.send(json.dumps({"type": "mics", "list": input_mics(sd.query_devices())}, ensure_ascii=False))
         except Exception as e:
             print("listener: mic list:", e, file=sys.stderr)
-        if warm["ok"] is not None:
-            await ws.send(json.dumps({"type": "brain", "local": warm["ok"]}))
+        if warm["state"] is not None:
+            await ws.send(json.dumps({"type": "brain", "state": warm["state"]}))
         try:
             async for raw in ws:
                 try:
@@ -165,6 +179,9 @@ async def run():
                     quit_cleanly(hearing)
                 if isinstance(msg, dict) and msg.get("type") == "edit_apps":  # menu: "App list..."
                     work.put((apps.edit, None))
+                    continue
+                if isinstance(msg, dict) and msg.get("type") == "pull_model":  # minutes: own thread
+                    threading.Thread(target=pull_model, daemon=True).start()
                     continue
                 if isinstance(msg, dict) and msg.get("type") == "pick_ptt_key":  # menu: "Command key..."
                     threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
@@ -184,7 +201,7 @@ async def run():
             await asyncio.sleep(1)
             work.put((core.tick, None))
             warm["at"] += 1
-            if warm["ok"] is False and warm["at"] % 60 == 0:
+            if warm["state"] not in (None, "ok") and not warm["pulling"] and warm["at"] % 60 == 0:  # Ollama installed later
                 work.put((warm_model, None))
             want = core.listening
             if core.device != device:  # the user picked another mic in the menu

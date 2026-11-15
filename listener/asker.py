@@ -9,11 +9,13 @@ import random
 import re
 import urllib.request
 
-LOCAL_URL = "http://127.0.0.1:11434/api/chat"
-LOCAL_MODEL = os.environ.get("CIRAK_MODEL", "qwen2.5:3b")
+OLLAMA = "http://127.0.0.1:11434"
+LOCAL_URL = OLLAMA + "/api/chat"
+# Apache 2.0 (qwen2.5:3b is research-only, not for an open-source default); ~1 GB
+LOCAL_MODEL = os.environ.get("CIRAK_MODEL", "qwen2.5:1.5b")
 HAIKU = "claude-haiku-5-5"
 MAX_WORDS = 15
-KEEP_ALIVE = "2h"  # ponytail: holds ~2 GB VRAM while idle; after 2h silence the first question uses the list
+KEEP_ALIVE = "2h"  # ponytail: holds ~1 GB (V)RAM while idle; after 2h silence the first question uses the list
 
 SYSTEM = {
     "en": ("You are a tiny wizard apprentice keeping the user company while they work. The potion you stir "
@@ -92,6 +94,39 @@ def ask_local(context: str, lang: str):
             return json.load(r)["message"]["content"]
     except Exception:
         return None
+
+
+def brain_state() -> str:
+    """"ok", "no_model" (Ollama runs, our model isn't downloaded) or "no_ollama"."""
+    try:
+        with urllib.request.urlopen(OLLAMA + "/api/tags", timeout=3) as r:
+            names = {m.get("name", "") for m in json.load(r).get("models", [])}
+    except Exception:
+        return "no_ollama"
+    return "ok" if LOCAL_MODEL in names or LOCAL_MODEL + ":latest" in names else "no_model"
+
+
+def pull(progress) -> bool:
+    """Downloads LOCAL_MODEL through Ollama; progress(25|50|75) as it goes. True when it is there."""
+    body = json.dumps({"model": LOCAL_MODEL, "stream": True}).encode()
+    told = 0
+    try:
+        req = urllib.request.Request(OLLAMA + "/api/pull", body, {"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            for line in r:
+                msg = json.loads(line or b"{}")
+                if msg.get("error"):
+                    return False
+                if msg.get("status") == "success":
+                    return True
+                if msg.get("total"):
+                    pct = 100 * msg.get("completed", 0) // msg["total"] // 25 * 25
+                    if 0 < pct < 100 and pct > told:
+                        told = pct
+                        progress(pct)
+    except Exception:
+        return False
+    return False
 
 
 def _haiku(context: str, lang: str, client):

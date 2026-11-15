@@ -9,6 +9,7 @@ signal lang_changed(lang: String)
 signal mic_device_changed(name: String)
 signal edit_apps
 signal pick_ptt_key
+signal pull_model
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
@@ -32,7 +33,9 @@ const TEXT := {
 		"microphone": "Microphone", "default_mic": "Windows default",
 		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
 		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)",
-		"no_ollama": "Questions from a list (Ollama not installed)",
+		"no_ollama": "Better questions: get Ollama (free)...",
+		"no_model": "Better questions: download the model (~1 GB)...",
+		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
 		"first_hint": "Right-click me for the microphone, language and more"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
@@ -40,7 +43,9 @@ const TEXT := {
 		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
 		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
 		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)",
-		"no_ollama": "Sorular listeden (Ollama kurulu değil)",
+		"no_ollama": "Daha iyi sorular: Ollama'yı indir (ücretsiz)...",
+		"no_model": "Daha iyi sorular: modeli indir (~1 GB)...",
+		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
 		"first_hint": "Mikrofon, dil ve fazlası için bana sağ tıkla"},
 }
 
@@ -61,6 +66,7 @@ var mic_device := ""
 var ptt_vk := 0xA3  ## push-to-talk key as a Windows key code; the listener picks and names it
 var ptt_name := ""  ## "" = Right Ctrl, never changed
 var paused_by = null  ## null = listening; "" or an app name = paused by a call
+var brain := "ok"  ## questions: "ok" (local model), "no_model", "no_ollama" (from the listener)
 
 var _pressed := false
 var _dragging := false
@@ -159,6 +165,7 @@ func _ready() -> void:
 		link.send({"type": "mic_device", "name": mic_device})
 		link.send({"type": "ptt_key", "vk": ptt_vk}))
 	pick_ptt_key.connect(func(): link.send({"type": "pick_ptt_key"}))
+	pull_model.connect(func(): link.send({"type": "pull_model"}))
 	mic_device_changed.connect(func(n): link.send({"type": "mic_device", "name": n}))
 	edit_apps.connect(func(): link.send({"type": "edit_apps"}))
 	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
@@ -264,6 +271,12 @@ func _on_menu(id: int) -> void:
 		PTT_ID:
 			apprentice.handle({"type": "say", "text": ui(lang, "ptt_pick")})
 			pick_ptt_key.emit()  # the listener waits for the key and answers with "ptt_key"
+		BRAIN_ID:
+			if brain == "no_model":
+				pull_model.emit()  # the listener downloads it and tells progress in the bubble
+			else:
+				OS.shell_open("https://ollama.com/download")
+				apprentice.handle({"type": "say", "text": ui(lang, "after_ollama")})
 
 
 func _on_link_message(msg: Dictionary) -> void:
@@ -280,7 +293,7 @@ func _on_link_message(msg: Dictionary) -> void:
 				_save()
 				apprentice.handle({"type": "say", "text": ui(lang, "first_hint")})
 		"brain":
-			_set_brain(bool(msg.get("local", true)))
+			_set_brain(str(msg.get("state", "ok")))
 		"ptt_key":
 			ptt_vk = int(msg.get("vk", 0xA3))  # JSON numbers arrive as floats
 			ptt_name = str(msg.get("name", ""))
@@ -303,16 +316,22 @@ func _set_paused(who) -> void:
 	_refresh_menu()
 
 
-## Greyed menu line while questions come from the built-in list (no Ollama): a reason, not a choice.
-func _set_brain(local: bool) -> void:
+## Menu line for better questions: get Ollama, or download the model; none once the model answers.
+static func brain_text(l: String, state: String) -> String:
+	return "" if state == "ok" else ui(l, state)
+
+
+func _set_brain(state: String) -> void:
+	brain = state
 	var idx := menu.get_item_index(BRAIN_ID)
-	if local:
+	if state == "ok":
 		if idx >= 0:
 			menu.remove_item(idx)
 		return
 	if idx < 0:
-		menu.add_item(ui(lang, "no_ollama"), BRAIN_ID)
-		menu.set_item_disabled(menu.get_item_index(BRAIN_ID), true)
+		menu.add_item("", BRAIN_ID)
+		menu.set_item_index(menu.get_item_index(BRAIN_ID), menu.get_item_count() - 3)  # above the separator
+	_refresh_menu()
 
 
 func _mic_names() -> Array:
@@ -377,7 +396,7 @@ func _refresh_menu() -> void:
 	if paused_by != null:
 		menu.set_item_text(menu.get_item_index(PAUSE_ID), pause_text(lang, paused_by))
 	if menu.get_item_index(BRAIN_ID) >= 0:
-		menu.set_item_text(menu.get_item_index(BRAIN_ID), ui(lang, "no_ollama"))
+		menu.set_item_text(menu.get_item_index(BRAIN_ID), brain_text(lang, brain))
 
 
 func _save() -> void:

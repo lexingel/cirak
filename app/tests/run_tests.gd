@@ -146,7 +146,9 @@ func test_command_menu() -> void:
 	check(MainScript.ui("tr", "apps").begins_with("Açabileceğim"), "app list menu text")
 	check(MainScript.ptt_label("en", "").contains("Right Ctrl"), "command key defaults to Right Ctrl")
 	check(MainScript.ptt_label("tr", "F8").contains("F8"), "command key line names the picked key")
-	check(MainScript.ui("tr", "no_ollama").contains("Ollama"), "menu says why questions come from the list")
+	check(MainScript.brain_text("tr", "no_ollama").contains("Ollama"), "menu offers Ollama when it is missing")
+	check(MainScript.brain_text("en", "no_model").contains("GB"), "menu offers the model download with its size")
+	check(MainScript.brain_text("en", "ok") == "", "no line when questions come from the model")
 	check(MainScript.ui("en", "first_hint").contains("Right-click"), "first start tells where the menu is")
 	m.free()
 

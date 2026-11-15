@@ -85,3 +85,40 @@ def test_reply_that_is_not_a_question_is_dropped():
 def test_prompt_keeps_the_potion_out_of_the_users_work():
     import asker
     assert "never ask about potions" in asker.SYSTEM["en"]
+
+
+def _fake_open(monkeypatch, reply):
+    import asker, io
+    def fake(req, timeout=None):
+        if isinstance(reply, Exception):
+            raise reply
+        return io.BytesIO(reply)
+    monkeypatch.setattr(asker.urllib.request, "urlopen", fake)
+
+
+def test_brain_state_tells_missing_ollama_from_missing_model(monkeypatch):
+    import asker
+    _fake_open(monkeypatch, OSError("refused"))
+    assert asker.brain_state() == "no_ollama"
+    _fake_open(monkeypatch, b'{"models": [{"name": "llama3.2:3b"}]}')
+    assert asker.brain_state() == "no_model"
+    _fake_open(monkeypatch, b'{"models": [{"name": "%s"}]}' % asker.LOCAL_MODEL.encode())
+    assert asker.brain_state() == "ok"
+
+
+def test_default_model_has_a_free_licence():
+    import asker
+    assert asker.LOCAL_MODEL == "qwen2.5:1.5b" or "CIRAK_MODEL" in __import__("os").environ  # Apache 2.0; 3b is research-only
+
+
+def test_pull_reports_progress_in_quarters(monkeypatch):
+    import asker
+    lines = b"\n".join([b'{"status":"pulling manifest"}', b'{"status":"downloading","total":100,"completed":30}',
+                        b'{"status":"downloading","total":100,"completed":31}',
+                        b'{"status":"downloading","total":100,"completed":80}', b'{"status":"success"}'])
+    _fake_open(monkeypatch, lines)
+    seen = []
+    assert asker.pull(seen.append) is True
+    assert seen == [25, 75]
+    _fake_open(monkeypatch, OSError("no network"))
+    assert asker.pull(seen.append) is False

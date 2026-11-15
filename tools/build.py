@@ -32,11 +32,14 @@ PY_ZIP = f"python-{PY_VER}-embed-amd64.zip"
 PY_URL = f"https://www.python.org/ftp/python/{PY_VER}/{PY_ZIP}"
 PY_SHA256 = "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"  # MD5 matched python.org's page
 CACHE = ROOT / "tools" / "cache"
+RCEDIT_URL = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
+RCEDIT_SHA256 = "3e7801db1a5edbec91b49a24a094aad776cb4515488ea5a4ca2289c400eade2a"  # unsigned upstream: pin it
 SKIP = {"tests", "__pycache__", ".venv", ".pytest_cache", "listener.log"}
 
 README = """Çırak - a tiny wizard apprentice who keeps you company while you work.
 
-Start: double-click Cirak.exe. Windows may say "Windows protected your PC" (the app is not
+Start: run Cirak-<version>-setup.exe (no admin needed; it can start Çırak with Windows), or
+unzip the zip and double-click Cirak.exe. Windows may say "Windows protected your PC" (the app is not
 signed): click "More info", then "Run anyway".
 
 First start downloads the speech model (~460 MB) to %LOCALAPPDATA%\\Cirak\\models; the
@@ -52,12 +55,13 @@ apprentice works (typing) meanwhile. Everything you say is turned into text on t
 - What leaves this PC: only the words after "ask Claude" (to Anthropic, with your own Claude login),
   a "tell Claude" task (typed into your local Claude Code, sent when you press Enter) and the
   one-time model download. Nothing else you say does.
-- Better questions (optional): install Ollama (ollama.com) and run `ollama pull qwen2.5:3b`.
+- Better questions (optional, free, stays on this PC): the right-click menu shows
+  "Better questions: get Ollama..." (opens ollama.com) and then "download the model (~1 GB)".
   Without it the apprentice picks from a list of gentle questions.
 - A GPU is optional (CUDA 12 + cuDNN 9 are used if installed); otherwise it runs on the CPU.
 
 Files: settings in %APPDATA%\\Godot\\app_userdata\\Cirak, the rest in %LOCALAPPDATA%\\Cirak.
-To remove: delete this folder and those two.
+To remove: Settings > Apps > Çırak (setup), or delete this folder and those two (zip).
 """
 
 
@@ -75,15 +79,7 @@ def sha256(p: Path) -> str:
 
 
 def embed_python(dest: Path) -> None:
-    CACHE.mkdir(parents=True, exist_ok=True)
-    z = CACHE / PY_ZIP
-    if not z.exists():
-        print("downloading", PY_URL)
-        urllib.request.urlretrieve(PY_URL, z)
-    if sha256(z) != PY_SHA256:
-        z.unlink()
-        sys.exit(f"{PY_ZIP}: checksum mismatch, deleted it; run again")
-    with zipfile.ZipFile(z) as f:
+    with zipfile.ZipFile(cached(PY_URL, PY_SHA256)) as f:
         f.extractall(dest)
     pth = next(dest.glob("python3*._pth"))
     # no "import site": packages from a Python the user installed must never leak in
@@ -92,6 +88,30 @@ def embed_python(dest: Path) -> None:
     # would start the listener but never transcribe. Microsoft lets apps ship these next to the exe.
     for dll in ("msvcp140.dll", "msvcp140_1.dll"):
         shutil.copy2(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / dll, dest / dll)
+
+
+def cached(url: str, sha: str) -> Path:
+    CACHE.mkdir(parents=True, exist_ok=True)
+    f = CACHE / url.rsplit("/", 1)[1]
+    if not f.exists():
+        print("downloading", url)
+        urllib.request.urlretrieve(url, f)
+    if sha256(f) != sha:
+        f.unlink()
+        sys.exit(f"{f.name}: checksum mismatch, deleted it; run again")
+    return f
+
+
+def stamp_exe(exe: Path) -> None:
+    """The apprentice icon and name/version in the exe's properties (Godot's own otherwise)."""
+    v = version()
+    subprocess.run([str(cached(RCEDIT_URL, RCEDIT_SHA256)), str(exe), "--set-icon", str(ROOT / "app" / "art" / "icon.ico"),
+                    "--set-file-version", v, "--set-product-version", v,
+                    "--set-version-string", "ProductName", "Çırak",
+                    "--set-version-string", "FileDescription", "Çırak - body-double companion",
+                    "--set-version-string", "CompanyName", "Çırak contributors",
+                    "--set-version-string", "LegalCopyright", "MIT (code), CC BY 4.0 (drawings)",
+                    "--set-version-string", "OriginalFilename", "Cirak.exe"], check=True)
 
 
 def licenses(lib: Path) -> str:
@@ -155,6 +175,7 @@ def main():
                     "Windows Desktop", str(OUT / "Cirak.exe")], check=True)
     if not (OUT / "Cirak.exe").exists():
         sys.exit("Godot export made no Cirak.exe (is the export preset there? is Cirak.exe running?)")
+    stamp_exe(OUT / "Cirak.exe")
 
     src = ROOT / "listener"
     for p in src.iterdir():
@@ -189,6 +210,15 @@ def main():
         z = DIST / f"Cirak-{version()}-win64"
         shutil.make_archive(str(z), "zip", DIST, "Cirak")
         print(f"{z.name}.zip: {Path(str(z) + '.zip').stat().st_size / 1e6:.0f} MB")
+    iscc = Path(os.environ.get("ISCC", Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/Inno Setup 6/ISCC.exe"))
+    if not iscc.exists():
+        print("no Inno Setup (set ISCC): skipped the installer")
+        return
+    print("building the installer")
+    subprocess.run([str(iscc), "/Q", f"/DAppVersion={version()}", f"/DSrc={OUT}", f"/DOut={DIST}",
+                    str(ROOT / "tools" / "cirak.iss")], check=True)
+    setup = DIST / f"Cirak-{version()}-setup.exe"
+    print(f"{setup.name}: {setup.stat().st_size / 1e6:.0f} MB")
 
 
 if __name__ == "__main__":
