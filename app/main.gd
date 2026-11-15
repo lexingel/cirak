@@ -17,17 +17,23 @@ const PAUSE_ID := 5
 const MIC_ID := 6
 const APPS_ID := 7
 const PTT_ID := 8
+const SKIN_ID := 9
+const SKINS := ["", "demirci", "sifaci", "katip", "okcu", "asci"]  ## "" = the wizard
+const SKIN_NAMES := {
+	"en": ["Wizard", "Blacksmith", "Healer", "Scribe", "Archer", "Cook"],
+	"tr": ["Büyücü", "Demirci", "Şifacı", "Katip", "Okçu", "Aşçı"],
+}
 const TEXT := {
 	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
 		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
 		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
 		"microphone": "Microphone", "default_mic": "Windows default",
-		"apps": "Apps I may open...", "ptt": "Hold Right Ctrl to give a command"},
+		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Hold Right Ctrl to give a command"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
 		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
-		"apps": "Açabileceğim uygulamalar...", "ptt": "Komut için Sağ Ctrl'ye basılı tut"},
+		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut için Sağ Ctrl'ye basılı tut"},
 }
 
 var apprentice: Apprentice
@@ -40,6 +46,8 @@ var level := "mid"
 var lang := "en"
 var lang_menu := PopupMenu.new()
 var mic_menu := PopupMenu.new()
+var skin_menu := PopupMenu.new()
+var skin := ""
 var mics: Array = []  ## mic names the listener reported; the menu lists "" (default) + these
 var mic_device := ""
 var paused_by = null  ## null = listening; "" or an app name = paused by a call
@@ -71,7 +79,12 @@ static func clamp_to_screen(pos: Vector2i, size: Vector2i, rect: Rect2i) -> Vect
 
 
 func _ready() -> void:
+	cfg.load(SETTINGS)
+	skin = cfg.get_value("prefs", "skin", "")
+	if not SKINS.has(skin):
+		skin = ""
 	apprentice = preload("res://apprentice.tscn").instantiate()
+	apprentice.skin = skin
 	apprentice.position = Vector2(130, 220 - 72)
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
@@ -97,6 +110,11 @@ func _ready() -> void:
 	menu.add_submenu_node_item("", freq_menu, 1)
 	menu.add_submenu_node_item("", lang_menu, 3)
 	menu.add_submenu_node_item("", mic_menu, MIC_ID)
+	for i in SKINS.size():
+		skin_menu.add_radio_check_item("", i)
+	skin_menu.id_pressed.connect(func(id): _set_skin(SKINS[id]))
+	menu.add_child(skin_menu)
+	menu.add_submenu_node_item("", skin_menu, SKIN_ID)
 	menu.add_item("", APPS_ID)
 	menu.add_item("", PTT_ID)
 	menu.set_item_disabled(menu.get_item_index(PTT_ID), true)  # a hint, not a button
@@ -105,7 +123,6 @@ func _ready() -> void:
 	menu.id_pressed.connect(_on_menu)
 	add_child(menu)
 
-	cfg.load(SETTINGS)
 	mic_on = cfg.get_value("prefs", "mic", true)
 	level = cfg.get_value("prefs", "frequency", "mid")
 	lang = cfg.get_value("prefs", "lang", "en")
@@ -267,6 +284,13 @@ func _set_mic_device(n: String) -> void:
 	_refresh_menu()
 
 
+func _set_skin(s: String) -> void:
+	skin = s
+	apprentice.set_skin(s)
+	_save()
+	_refresh_menu()
+
+
 func _set_level(l: String) -> void:
 	level = l
 	frequency_changed.emit(l)
@@ -293,6 +317,10 @@ func _refresh_menu() -> void:
 		lang_menu.set_item_checked(i, LANGS[i] == lang)
 	menu.set_item_text(menu.get_item_index(MIC_ID), ui(lang, "microphone"))
 	menu.set_item_text(menu.get_item_index(APPS_ID), ui(lang, "apps"))
+	menu.set_item_text(menu.get_item_index(SKIN_ID), ui(lang, "skin"))
+	for i in SKINS.size():
+		skin_menu.set_item_text(i, SKIN_NAMES.get(lang, SKIN_NAMES["en"])[i])
+		skin_menu.set_item_checked(i, SKINS[i] == skin)
 	menu.set_item_text(menu.get_item_index(PTT_ID), ui(lang, "ptt"))
 	mic_menu.clear()
 	var names := _mic_names()
@@ -310,6 +338,7 @@ func _save() -> void:
 	cfg.set_value("prefs", "frequency", level)
 	cfg.set_value("prefs", "lang", lang)
 	cfg.set_value("prefs", "mic_device", mic_device)
+	cfg.set_value("prefs", "skin", skin)
 	cfg.save(SETTINGS)
 
 

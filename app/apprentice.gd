@@ -18,6 +18,7 @@ const TOSS := ["toss", 8.0, false]  ## now and then while working: drops a leaf 
 const TOSS_EVERY := Vector2(45.0, 120.0)  ## seconds, random in this range
 
 var state: State = State.WORKING
+var skin := ""  ## set before _ready (or via set_skin) to start in another look
 var sprite := AnimatedSprite2D.new()
 var bubble := Bubble.new()
 var toss_timer := Timer.new()
@@ -39,7 +40,19 @@ func _ready() -> void:
 	toss_timer.start(randf_range(TOSS_EVERY.x, TOSS_EVERY.y))
 
 
-## Strips live in art/apprentice_<name>.png (48 px frames, side by side).
+## Which look: "" = the wizard (art/), otherwise a folder in art/skins/ (blacksmith, healer, ...).
+static func art_dir(skin: String) -> String:
+	return "res://art/" if skin.is_empty() else "res://art/skins/%s/" % skin
+
+
+## Swaps the look; the current pose keeps going in the new clothes.
+func set_skin(s: String) -> void:
+	skin = s
+	sprite.sprite_frames = _load_frames()
+	_enter(state)
+
+
+## Strips live in <art_dir>/apprentice_<name>.png (48 px frames, side by side).
 ## Loaded from disk so new art from tools/import_frames.py works without an editor import.
 func _load_frames() -> SpriteFrames:
 	var sf := SpriteFrames.new()
@@ -49,7 +62,7 @@ func _load_frames() -> SpriteFrames:
 		sf.add_animation(name)
 		sf.set_animation_speed(name, spec[1])
 		sf.set_animation_loop(name, spec[2])
-		var path := "res://art/apprentice_%s.png" % name
+		var path := art_dir(skin) + "apprentice_%s.png" % name
 		# editor: read the png itself (fresh art needs no reimport); export: the imported texture
 		var img: Image = Image.load_from_file(ProjectSettings.globalize_path(path)) if OS.has_feature("editor") else load(path).get_image()
 		if img == null:
