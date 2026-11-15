@@ -116,13 +116,52 @@ def test_whisper_segments_it_doubts_are_dropped():
     assert keep(segs) == "fixing the menu"
 
 
-def test_push_to_talk_keeps_every_block_until_release():
+def _ptt(chord=False):
     import numpy as np
     from hearing import PushToTalk
-    held, got, started = [True], [], []
-    p = PushToTalk(lambda: held[0], lambda: started.append(1), got.append)
-    quiet = np.zeros(480, "float32")
-    assert p.feed(quiet) and p.feed(quiet)  # quiet blocks count too: the key decides
+    held, other, got, started = [True], [chord], [], []
+    p = PushToTalk(lambda: held[0], lambda: started.append(1), got.append, lambda: other[0])
+    return p, held, other, got, started, np.zeros(480, "float32")
+
+
+def test_push_to_talk_keeps_every_block_until_release():
+    from hearing import PTT_MIN
+    p, held, _, got, started, quiet = _ptt()
+    for _ in range(PTT_MIN):
+        assert p.feed(quiet)  # quiet blocks count too: the key decides
+    assert started == [1]
     held[0] = False
-    assert p.feed(quiet) and len(got) == 1 and len(got[0]) == 960 and started == [1]
+    assert p.feed(quiet) and len(got) == 1 and len(got[0]) == PTT_MIN * 480
     assert not p.feed(quiet)  # back to normal listening
+
+
+def test_push_to_talk_tap_is_ignored():
+    p, held, _, got, started, quiet = _ptt()
+    p.feed(quiet); p.feed(quiet)  # Ctrl tapped, as in a shortcut
+    held[0] = False
+    p.feed(quiet)
+    assert got == [] and started == []
+
+
+def test_push_to_talk_shortcut_cancels():
+    from hearing import PTT_MIN
+    p, held, other, got, started, quiet = _ptt()
+    for _ in range(PTT_MIN + 2):
+        p.feed(quiet)
+    other[0] = True  # Ctrl+C after a pause: not a command
+    assert p.feed(quiet) and got == [None]
+    other[0] = False
+    assert p.feed(quiet) and got == [None]  # still held: nothing new starts
+    held[0] = False
+    assert not p.feed(quiet) and started == [1]
+
+
+def test_push_to_talk_cut_at_max_does_not_restart():
+    from hearing import PTT_MAX, BLOCK, RATE
+    p, held, _, got, started, quiet = _ptt()
+    for _ in range(int(PTT_MAX * RATE / BLOCK) + 50):
+        p.feed(quiet)
+    assert len(got) == 1 and started == [1]
+    held[0] = False
+    p.feed(quiet)
+    assert len(got) == 1

@@ -49,6 +49,13 @@ def ptt_held() -> bool:
     return bool(ctypes.windll.user32.GetAsyncKeyState(PTT_KEY) & 0x8000)
 
 
+def other_key_down() -> bool:
+    """Any key or mouse button besides Right Ctrl: Right Ctrl+C is a shortcut, not push-to-talk."""
+    import ctypes
+    get = ctypes.windll.user32.GetAsyncKeyState
+    return any(get(vk) & 0x8000 for vk in range(1, 0xFF) if vk not in (PTT_KEY, 0x11))  # 0x11: any Ctrl
+
+
 def make_actions(speaker_busy, spawn):
     """What each spoken command does. Every fn(arg, lang, say) returns the bubble text."""
     def do_media(action, lang, say):
@@ -123,7 +130,8 @@ async def run():
                                             on_end=lambda audio: work.put((core.speech_end, audio)),
                                             device=core.device, ptt=ptt_held,
                                             on_ptt_start=lambda: work.put((core.ptt_start, None)),
-                                            on_ptt_end=lambda audio: work.put((core.ptt_end, audio))))
+                                            on_ptt_end=lambda audio: work.put((core.ptt_end, audio)),
+                                            chord=other_key_down))
 
     hearing = make_hearing()
     device = core.device

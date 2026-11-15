@@ -83,6 +83,10 @@ def embed_python(dest: Path) -> None:
     pth = next(dest.glob("python3*._pth"))
     # no "import site": packages from a Python the user installed must never leak in
     pth.write_text("python312.zip\n.\n..\n..\\lib\n", encoding="utf-8")
+    # ctranslate2 (Whisper) and onnxruntime need the C++ runtime; a PC without the VC++ redistributable
+    # would start the listener but never transcribe. Microsoft lets apps ship these next to the exe.
+    for dll in ("msvcp140.dll", "msvcp140_1.dll"):
+        shutil.copy2(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / dll, dest / dll)
 
 
 def licenses(lib: Path) -> str:
@@ -96,7 +100,8 @@ def licenses(lib: Path) -> str:
             lic = ", ".join(c.split(" :: ")[-1] for c in re.findall(r"^Classifier: License :: (.+)$", head, re.M)) or lic[:60]
         rows.append(f"{get('Name')} {get('Version')}: {lic}")
     return ("Third-party software in listener/lib and listener/python\n\n" + "\n".join(rows) +
-            "\n\nPython: PSF License (listener/python/LICENSE.txt)\nGodot Engine: MIT (Cirak.exe)\n"
+            "\n\nPython: PSF License (listener/python/LICENSE.txt)\n"
+            "msvcp140*.dll: Microsoft Visual C++ Redistributable (redistributable files)\nGodot Engine: MIT (Cirak.exe)\n"
             "av (PyAV) bundles FFmpeg built with GPL parts (x264, x265); its sources: github.com/PyAV-Org/pyav-ffmpeg\n"
             "Whisper 'small' model (downloaded on first run): MIT, Systran/faster-whisper-small\n")
 

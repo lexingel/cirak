@@ -50,7 +50,10 @@ class Listener:
             self._heard = False
             return
         self._heard = False
-        text = self.transcribe(audio, self.lang)
+        text = self._hear(self.transcribe, audio)
+        if text is None:
+            self.send({"type": "speech_end"})
+            return
         if self._command(text):
             return
         if not self._narrate(text):  # a question goes straight from listening to asking
@@ -64,11 +67,19 @@ class Listener:
         """Push-to-talk released: what was said is a command, even over music (no speaker gate)."""
         if not self.listening:
             return
-        text = self.transcribe_cmd(audio, self.lang)
-        if not text.strip():
+        text = None if audio is None else self._hear(self.transcribe_cmd, audio)  # None: cancelled
+        if not (text or "").strip():
             self.send({"type": "speech_end"})
             return
         self._command(text, ptt=True)
+
+    def _hear(self, fn, audio):
+        """Transcribed text, or None if Whisper failed (then the apprentice must leave LISTENING)."""
+        try:
+            return fn(audio, self.lang)
+        except Exception as e:
+            print("listener: transcribe failed:", e, file=__import__("sys").stderr)
+            return None
 
     def say(self, text: str) -> None:
         self.send({"type": "say", "text": text})

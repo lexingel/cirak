@@ -150,3 +150,19 @@ def test_empty_push_to_talk_just_ends_listening():
     L, sent, done = make_cmd()
     L.ptt_start(); L.ptt_end("  ")
     assert types(sent) == ["speech_start", "speech_end"]
+
+
+def test_cancelled_push_to_talk_ends_listening():
+    L, sent, done = make_cmd()
+    L.ptt_start(); L.ptt_end(None)
+    assert types(sent) == ["speech_start", "speech_end"] and done == []
+
+
+def test_transcription_failure_never_leaves_listening_stuck():
+    L, sent, done = make_cmd()
+    L.transcribe = L.transcribe_cmd = lambda a, lang: 1 / 0
+    L.speech_start(); L.speech_end("x")
+    assert types(sent) == ["speech_start", "speech_end"]
+    sent.clear()
+    L.ptt_start(); L.ptt_end("x")
+    assert types(sent) == ["speech_start", "speech_end"]

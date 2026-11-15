@@ -7,6 +7,7 @@ START_BLOCKS = 9  # ~270 ms of sustained sound before it counts as speech (key c
 SILENCE_END = 1.5  # seconds of quiet that ends an utterance
 MAX_SECONDS = 30  # steady noise (fan, hum) never ends on its own; cut it here
 PTT_MAX = 15  # seconds; a push-to-talk key stuck down still ends
+PTT_MIN = 10  # blocks (~0.3 s) held before it counts: a Ctrl tap for a shortcut never does
 HOTWORDS = "Çırak, Claude"  # spelling help, push-to-talk only (app names here pushed Turkish into English)
 
 
@@ -77,11 +78,11 @@ class Loudness:
 class Hearing:
     # ponytail: energy VAD + noise floor, swap for silero if noisy rooms still misfire
     def __init__(self, on_start, on_end, threshold: float = 0.015, device: str = "",
-                 ptt=None, on_ptt_start=None, on_ptt_end=None):
+                 ptt=None, on_ptt_start=None, on_ptt_end=None, chord=None):
         import sounddevice as sd
         self.loud = Loudness(threshold)
         self.detector = Detector(on_start, on_end)
-        self.ptt = PushToTalk(ptt, on_ptt_start, on_ptt_end) if ptt else None
+        self.ptt = PushToTalk(ptt, on_ptt_start, on_ptt_end, chord or (lambda: False)) if ptt else None
         self._stream = sd.InputStream(device=device_index(sd.query_devices(), device),
                                       samplerate=RATE, channels=1, blocksize=BLOCK,
                                       dtype="float32", callback=self._cb)
@@ -107,24 +108,46 @@ class Hearing:
 
 class PushToTalk:
     """While `held()` is true every block is kept, whatever its loudness (music may be playing);
-    on release the whole clip goes to on_end. Pure logic, fed one block at a time."""
+    on release the whole clip goes to on_end. Pure logic, fed one block at a time.
 
-    def __init__(self, held, on_start, on_end):
-        self.held, self.on_start, self.on_end = held, on_start, on_end
+    Starts only after PTT_MIN blocks, so Ctrl taps for shortcuts are ignored. If `chord()` says
+    another key went down (Ctrl+C), the clip is dropped: on_end(None) if on_start had fired.
+    After a cut (chord or PTT_MAX) nothing restarts until the key is released.
+    """
+
+    def __init__(self, held, on_start, on_end, chord=lambda: False):
+        self.held, self.on_start, self.on_end, self.chord = held, on_start, on_end, chord
         self._chunks: list = []
+        self._blocked = False
 
     def feed(self, block) -> bool:
         """True if the block was taken (key held, or just released)."""
-        if self.held() and len(self._chunks) * BLOCK / RATE < PTT_MAX:
-            if not self._chunks:
-                self.on_start()
+        down = self.held()
+        if self._blocked:
+            self._blocked = down
+            return down
+        if down and self.chord():
+            if len(self._chunks) >= PTT_MIN:
+                self.on_end(None)
+            self._chunks, self._blocked = [], True
+            return True
+        if down:
             self._chunks.append(block)
+            if len(self._chunks) == PTT_MIN:
+                self.on_start()
+            if len(self._chunks) * BLOCK / RATE >= PTT_MAX:
+                self._finish()
+                self._blocked = True
             return True
         if self._chunks:
-            audio, self._chunks = np.concatenate(self._chunks), []
-            self.on_end(audio)
+            self._finish()
             return True
         return False
+
+    def _finish(self):
+        audio, self._chunks = np.concatenate(self._chunks), []
+        if len(audio) >= PTT_MIN * BLOCK:
+            self.on_end(audio)
 
 
 _model = None
