@@ -40,9 +40,12 @@ func _ready() -> void:
 
 func _launch() -> void:
 	_since_launch = 0.0
-	# editor run: app/ next to listener/; exported build: build/Cirak.exe next to listener/
+	# editor run: app/ next to listener/; dev build: build/Cirak.exe next to listener/;
+	# release zip: Cirak.exe with listener/ inside its own folder
 	var base := ProjectSettings.globalize_path("res://") if OS.has_feature("editor") else OS.get_executable_path().get_base_dir()
-	var listener := base.path_join("../listener").simplify_path()
+	var listener := base.path_join("listener")
+	if not FileAccess.file_exists(listener.path_join("main.py")):
+		listener = base.path_join("../listener").simplify_path()
 	# a release ships its own Python next to the code; a dev checkout uses the venv
 	var py := listener.path_join("python/pythonw.exe")
 	if not FileAccess.file_exists(py):

@@ -6,3 +6,5 @@ app/.godot/
 art_in/
 build/
 listener/listener.log
+dist/
+tools/cache/

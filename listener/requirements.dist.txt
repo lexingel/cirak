@@ -1,0 +1,6 @@
+faster-whisper
+sounddevice
+numpy
+websockets>=12
+pycaw
+comtypes
