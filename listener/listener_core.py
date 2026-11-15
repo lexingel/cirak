@@ -12,6 +12,7 @@ class Listener:
         self.mic_on = True
         self.paused = False
         self._heard = False
+        self.lang = "en"
 
     @property
     def listening(self) -> bool:
@@ -40,7 +41,7 @@ class Listener:
             self._heard = False
             return
         self._heard = False
-        text = self.transcribe(audio)
+        text = self.transcribe(audio, self.lang)
         self.send({"type": "speech_end"})
         self._narrate(text)
 
@@ -48,7 +49,7 @@ class Listener:
         now = self.clock()
         self.gate.add_text(text, now)
         if self.gate.should_ask(now):
-            q = self.ask(self.gate.context())
+            q = self.ask(self.gate.context(), self.lang)
             self.gate.mark_asked(now)
             self.send({"type": "question", "text": q})
 
@@ -58,5 +59,7 @@ class Listener:
             self._narrate(str(msg["text"]))
         elif t == "mic":
             self.mic_on = bool(msg.get("on"))
+        elif t == "lang" and msg.get("lang") in ("en", "tr"):
+            self.lang = msg["lang"]
         elif t == "frequency":
             self.gate.set_level(str(msg.get("level")))

@@ -63,7 +63,7 @@ class Hearing:
 _model = None
 
 
-def transcribe(audio) -> str:
+def transcribe(audio, lang: str = "en") -> str:
     global _model
     if _model is None:
         from faster_whisper import WhisperModel
@@ -71,6 +71,6 @@ def transcribe(audio) -> str:
             _model = WhisperModel("small", device="cuda", compute_type="float16")
         except Exception:
             _model = WhisperModel("small", device="cpu", compute_type="int8")
-    segs, _ = _model.transcribe(audio, language="tr", vad_filter=True)
+    segs, _ = _model.transcribe(audio, language=lang, vad_filter=True)
     # Drop segments Whisper itself thinks are not speech (where hallucinations come from).
     return " ".join(s.text.strip() for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0)

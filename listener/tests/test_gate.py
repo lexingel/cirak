@@ -53,3 +53,10 @@ def test_short_utterances_do_not_add_up():
     for i in range(8):
         g.add_text("Teşekkürler.", now=10 + i)
     assert not g.should_ask(now=400 - 300)  # within window, interval met from -inf
+
+
+def test_english_hallucinations_ignored():
+    g = QuestionGate(min_words=3)
+    g.add_text("Thank you for watching!", now=1)
+    g.add_text("Subtitles by the Amara.org community", now=2)
+    assert not g.should_ask(now=5)

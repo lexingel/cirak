@@ -5,10 +5,20 @@ extends Node2D
 signal typed(text: String)
 signal mic_changed(on: bool)
 signal frequency_changed(level: String)
+signal lang_changed(lang: String)
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
 const LEVELS := ["low", "mid", "high"]
+const LANGS := ["en", "tr"]
+const TEXT := {
+	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
+		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
+		"close": "Close", "placeholder": "What are you working on?"},
+	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
+		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
+		"close": "Kapat", "placeholder": "Ne yapıyorsun?"},
+}
 
 var apprentice: Apprentice
 var text_box := LineEdit.new()
@@ -17,11 +27,17 @@ var freq_menu := PopupMenu.new()
 var cfg := ConfigFile.new()
 var mic_on := true
 var level := "mid"
+var lang := "en"
+var lang_menu := PopupMenu.new()
 
 var _pressed := false
 var _dragging := false
 var _press_mouse := Vector2i.ZERO
 var _press_win := Vector2i.ZERO
+
+
+static func ui(l: String, key: String) -> String:
+	return TEXT.get(l, TEXT["en"])[key]
 
 
 static func clamp_to_screen(pos: Vector2i, size: Vector2i, rect: Rect2i) -> Vector2i:
@@ -36,7 +52,6 @@ func _ready() -> void:
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
 
-	text_box.placeholder_text = "Ne yapıyorsun?"
 	text_box.position = Vector2(10, 30)
 	text_box.size = Vector2(240, 30)
 	text_box.visible = false
@@ -45,19 +60,25 @@ func _ready() -> void:
 	add_child(text_box)
 
 	for i in LEVELS.size():
-		freq_menu.add_radio_check_item(["Az", "Orta", "Çok"][i], i)
+		freq_menu.add_radio_check_item("", i)
 	freq_menu.id_pressed.connect(func(id): _set_level(LEVELS[id]))
+	lang_menu.add_radio_check_item("English", 0)
+	lang_menu.add_radio_check_item("Türkçe", 1)
+	lang_menu.id_pressed.connect(func(id): _set_lang(LANGS[id]))
 	menu.add_child(freq_menu)
+	menu.add_child(lang_menu)
 	menu.add_item("", 0)
-	menu.add_submenu_node_item("Soru sıklığı", freq_menu)
+	menu.add_submenu_node_item("", freq_menu, 1)
+	menu.add_submenu_node_item("", lang_menu, 3)
 	menu.add_separator()
-	menu.add_item("Kapat", 2)
+	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
 	add_child(menu)
 
 	cfg.load(SETTINGS)
 	mic_on = cfg.get_value("prefs", "mic", true)
 	level = cfg.get_value("prefs", "frequency", "mid")
+	lang = cfg.get_value("prefs", "lang", "en")
 	_refresh_menu()
 
 	var link := Link.new()
@@ -65,7 +86,9 @@ func _ready() -> void:
 	link.message.connect(apprentice.handle)
 	link.connected.connect(func():
 		link.send({"type": "mic", "on": mic_on})
-		link.send({"type": "frequency", "level": level}))
+		link.send({"type": "frequency", "level": level})
+		link.send({"type": "lang", "lang": lang}))
+	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
 	typed.connect(func(t): link.send({"type": "typed", "text": t}))
 	mic_changed.connect(func(on): link.send({"type": "mic", "on": on}))
 	frequency_changed.connect(func(l): link.send({"type": "frequency", "level": l}))
@@ -169,16 +192,31 @@ func _set_level(l: String) -> void:
 	_refresh_menu()
 
 
+func _set_lang(l: String) -> void:
+	lang = l
+	lang_changed.emit(l)
+	_save()
+	_refresh_menu()
+
+
 func _refresh_menu() -> void:
-	menu.set_item_text(menu.get_item_index(0), "Mikrofonu kapat" if mic_on else "Mikrofonu aç")
+	menu.set_item_text(menu.get_item_index(0), ui(lang, "mic_off" if mic_on else "mic_on"))
+	menu.set_item_text(menu.get_item_index(1), ui(lang, "frequency"))
+	menu.set_item_text(menu.get_item_index(3), ui(lang, "language"))
+	menu.set_item_text(menu.get_item_index(2), ui(lang, "close"))
 	for i in LEVELS.size():
+		freq_menu.set_item_text(i, ui(lang, LEVELS[i]))
 		freq_menu.set_item_checked(i, LEVELS[i] == level)
+	for i in LANGS.size():
+		lang_menu.set_item_checked(i, LANGS[i] == lang)
+	text_box.placeholder_text = ui(lang, "placeholder")
 
 
 func _save() -> void:
 	cfg.set_value("win", "pos", get_window().position)
 	cfg.set_value("prefs", "mic", mic_on)
 	cfg.set_value("prefs", "frequency", level)
+	cfg.set_value("prefs", "lang", lang)
 	cfg.save(SETTINGS)
 
 

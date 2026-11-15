@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -85,3 +85,9 @@ func test_relaunch() -> void:
 	check(LinkScript.needs_relaunch(false, 12.0), "dead listener relaunched after backoff")
 	check(not LinkScript.needs_relaunch(false, 3.0), "not hammering")
 	check(not LinkScript.needs_relaunch(true, 60.0), "running listener left alone")
+
+
+func test_ui_text() -> void:
+	check(MainScript.TEXT["en"].keys() == MainScript.TEXT["tr"].keys(), "both languages have every label")
+	check(MainScript.ui("en", "close") == "Close" and MainScript.ui("tr", "close") == "Kapat", "label lookup")
+	check(MainScript.ui("xx", "close") == "Close", "unknown language -> English")

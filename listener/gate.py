@@ -1,6 +1,7 @@
 """Decides when the apprentice may ask a question. Never when the user is silent."""
 
-HALLUCINATIONS = ("altyazı m.k", "izlediğiniz için teşekkür", "abone olmayı unutmayın")
+HALLUCINATIONS = ("altyazı m.k", "izlediğiniz için teşekkür", "abone olmayı unutmayın",
+                  "thank you for watching", "thanks for watching", "subtitles by", "please subscribe")
 MIN_UTTERANCE_WORDS = 3  # "hmm", "tamam", "Teşekkürler." on noise never count, even added up
 LEVELS = {"low": 600, "mid": 300, "high": 120}
 WINDOW = 180  # seconds of narration kept

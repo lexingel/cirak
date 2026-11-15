@@ -127,3 +127,9 @@ Pencere kenarlıksız, arkası şeffaf ve her zaman üstte olacak. Fare tıklama
 - Soru üretme isteminin tam metni (yukarıdaki tona uyması şartıyla)
 - Çırak sprite'ının boyutu, kare sayısı ve çizim aracı (pixart, PixelLab ya da elle)
 - Sağ tık menüsünün ve yazı kutusunun görünümü
+
+## Değişiklik (2026-11-15, kullanıcının kararı)
+
+- **Dil seçilebilir, varsayılan İngilizce.** Sağ tık menüsünde "Language / Dil" var. Seçilen dil hem Whisper'ın dinlediği dili, hem soruların dilini, hem yedek listeyi, hem de menüyü belirliyor.
+- **Sorular varsayılan olarak yerel modelden geliyor** (Ollama, `qwen2.5:3b`; `CIRAK_MODEL` ortam değişkeniyle değiştirilebilir). Ücretsiz ve hiçbir metin bilgisayardan çıkmıyor. Yerel model yoksa ve `ANTHROPIC_API_KEY` tanımlıysa Claude Haiku 5.5 kullanılıyor (düşünme kapalı). İkisi de yoksa yedek liste kullanılıyor.
+- Protokole yeni bir mesaj eklendi: uygulama → dinleyici `{"type":"lang","lang":"en"|"tr"}`.

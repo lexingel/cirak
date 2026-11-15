@@ -8,7 +8,7 @@ LONG = "şimdi menüdeki butonları tek tek hizalıyorum ve renklerini deniyorum
 def make(call=False, speaker=False):
     sent, clock = [], [1000.0]
     state = {"call": call, "speaker": speaker}
-    L = Listener(send=sent.append, transcribe=lambda a: a, ask=lambda ctx: "Ne var?",
+    L = Listener(send=sent.append, transcribe=lambda a, lang: a, ask=lambda ctx, lang: "Ne var?",
                  call_busy=lambda: state["call"], speaker_busy=lambda: state["speaker"],
                  clock=lambda: clock[0])
     return L, sent, state, clock
@@ -64,3 +64,18 @@ def test_speaker_busy_does_not_even_look_up():
     L, sent, *_ = make(speaker=True)
     L.speech_start(); L.speech_end(LONG)
     assert sent == []
+
+
+def test_language_message_reaches_transcribe_and_ask():
+    seen = {}
+    sent = []
+    L = Listener(send=sent.append,
+                 transcribe=lambda a, lang: seen.setdefault("t", lang) and a,
+                 ask=lambda ctx, lang: seen.setdefault("a", lang) and "Q?",
+                 call_busy=lambda: False, speaker_busy=lambda: False, clock=lambda: 1000.0)
+    assert L.lang == "en"
+    L.on_client({"type": "lang", "lang": "tr"})
+    L.speech_start(); L.speech_end(LONG)
+    assert seen == {"t": "tr", "a": "tr"}
+    L.on_client({"type": "lang", "lang": "klingon"})
+    assert L.lang == "tr"
