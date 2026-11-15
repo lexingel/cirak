@@ -8,3 +8,5 @@ build/
 listener/listener.log
 dist/
 tools/cache/
+research_notes/
+reports/
