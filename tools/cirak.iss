@@ -12,6 +12,12 @@ DefaultDirName={localappdata}\Programs\Cirak
 DefaultGroupName=Çırak
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+; the Godot export and the bundled Python are 64-bit, Windows 10+; stop with a clear message otherwise
+MinVersion=10.0
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; the Whisper speech model (~460 MB) downloads on first start: count it in "space required"
+ExtraDiskSpaceRequired=480000000
 OutputDir={#Out}
 OutputBaseFilename=Cirak-{#AppVersion}-setup
 SetupIconFile={#Src}\..\..\app\art\icon.ico

@@ -130,3 +130,16 @@ def test_model_file_overrides_the_default(tmp_path):
     assert asker.model_name(f) == "qwen2.5:1.5b"
     f.write_text(" qwen2.5:3b\n", encoding="utf-8")
     assert asker.model_name(f) == "qwen2.5:3b"
+
+
+def test_picking_a_model_saves_it_and_only_known_ones(tmp_path):
+    import asker
+    f = tmp_path / "model.txt"
+    old = asker.LOCAL_MODEL
+    try:
+        assert asker.set_model("qwen2.5:7b", f) is True
+        assert asker.LOCAL_MODEL == "qwen2.5:7b" and asker.model_name(f) == "qwen2.5:7b"
+        assert asker.set_model("evil; rm -rf", f) is False and asker.LOCAL_MODEL == "qwen2.5:7b"
+    finally:
+        asker.LOCAL_MODEL = old
+    assert set(asker.MODELS) == {"qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"}

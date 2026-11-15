@@ -26,6 +26,21 @@ def model_name(f=None) -> str:
 
 
 LOCAL_MODEL = model_name()
+MODELS = ("qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b")  # the menu's choices; descriptions live in the app
+
+
+def set_model(name: str, f=None) -> bool:
+    """Menu pick: remembered in model.txt. Only the known names: the app's text never reaches Ollama as-is."""
+    global LOCAL_MODEL
+    if name not in MODELS:
+        return False
+    if f is None:
+        from paths import DATA
+        DATA.mkdir(parents=True, exist_ok=True)
+        f = DATA / "model.txt"
+    f.write_text(name + "\n", encoding="utf-8")
+    LOCAL_MODEL = name
+    return True
 HAIKU = "claude-haiku-5-5"
 MAX_WORDS = 15
 KEEP_ALIVE = "2h"  # ponytail: holds ~1 GB (V)RAM while idle; after 2h silence the first question uses the list

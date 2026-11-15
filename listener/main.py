@@ -112,15 +112,31 @@ async def run():
 
     threading.Thread(target=worker, daemon=True).start()
     work.put((apps.index, None))  # PowerShell, up to 20 s: now, not when the first "open" waits on it
-    warm = {"state": None, "at": 0, "whisper": False, "pulling": False}  # state: None until Ollama was tried
+    # state: None until Ollama was tried; mic: None until the privacy switches were read
+    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None}
 
-    def warm_model():  # load the local model now, not on the first question; retried while Ollama boots
+    def brain_msg():
+        return {"type": "brain", "state": warm["state"], "model": asker.LOCAL_MODEL}
+
+    def warm_model(force=False):  # load the local model now, not on the first question; retried while Ollama boots
         state = asker.brain_state()
         if state == "ok" and ask_local("warming up", "en") is None:
             state = "no_ollama"  # listed but not answering
-        if state != warm["state"]:
+        if state != warm["state"] or force:
             warm["state"] = state
-            send({"type": "brain", "state": state})  # the menu offers Ollama / the model download
+            send(brain_msg())  # the menu offers Ollama / the model download, ticks the model
+
+    def pick_model(name):  # menu: "Question model"; the user saw its size, so a missing one downloads now
+        if asker.set_model(name):
+            warm_model(force=True)
+            if warm["state"] == "no_model":
+                pull_model()
+
+    def check_mic():  # Windows' microphone privacy switch: off = only silence, so say why
+        blocked = not mic_guard.mic_allowed()
+        if blocked != warm["mic"]:
+            warm["mic"] = blocked
+            send({"type": "mic_blocked", "blocked": blocked})
 
     def pull_model():  # menu: "download the question model"; asked for by the user, ~1 GB
         if warm["pulling"]:
@@ -138,6 +154,8 @@ async def run():
         core.warm(__import__("numpy").zeros(16000, "float32"), fresh)
 
     work.put((warm_model, None))
+    work.put((check_mic, None))
+
     def make_hearing():
         return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
                                             on_end=lambda audio: work.put((core.speech_end, audio)),
@@ -168,7 +186,9 @@ async def run():
         except Exception as e:
             print("listener: mic list:", e, file=sys.stderr)
         if warm["state"] is not None:
-            await ws.send(json.dumps({"type": "brain", "state": warm["state"]}))
+            await ws.send(json.dumps(brain_msg()))
+        if warm["mic"] is not None:
+            await ws.send(json.dumps({"type": "mic_blocked", "blocked": warm["mic"]}))
         try:
             async for raw in ws:
                 try:
@@ -182,6 +202,9 @@ async def run():
                     continue
                 if isinstance(msg, dict) and msg.get("type") == "pull_model":  # minutes: own thread
                     threading.Thread(target=pull_model, daemon=True).start()
+                    continue
+                if isinstance(msg, dict) and msg.get("type") == "model":  # may download: own thread
+                    threading.Thread(target=pick_model, args=(str(msg.get("name", "")),), daemon=True).start()
                     continue
                 if isinstance(msg, dict) and msg.get("type") == "pick_ptt_key":  # menu: "Command key..."
                     threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
@@ -203,6 +226,8 @@ async def run():
             warm["at"] += 1
             if warm["state"] not in (None, "ok") and not warm["pulling"] and warm["at"] % 60 == 0:  # Ollama installed later
                 work.put((warm_model, None))
+            if warm["at"] % 10 == 0:  # switched in Settings while running
+                work.put((check_mic, None))
             want = core.listening
             if core.device != device:  # the user picked another mic in the menu
                 device = core.device

@@ -10,6 +10,7 @@ signal mic_device_changed(name: String)
 signal edit_apps
 signal pick_ptt_key
 signal pull_model
+signal model_picked(name: String)
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
@@ -21,6 +22,16 @@ const APPS_ID := 7
 const PTT_ID := 8
 const SKIN_ID := 9
 const BRAIN_ID := 10
+const MODEL_ID := 11
+const MICPERM_ID := 12
+const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
+const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
+const MODEL_NOTE := {
+	"en": ["fast, free licence; weaker in Turkish", "better Turkish; research licence (not for commercial use)",
+		"best questions; slow without a graphics card"],
+	"tr": ["hızlı, serbest lisans; Türkçesi zayıf", "Türkçesi daha iyi; araştırma lisansı (ticari kullanım yok)",
+		"en iyi sorular; ekran kartı yoksa yavaş"],
+}
 const SKINS := ["", "demirci", "sifaci", "katip", "okcu", "asci"]  ## "" = the wizard
 const SKIN_NAMES := {
 	"en": ["Wizard", "Blacksmith", "Healer", "Scribe", "Archer", "Cook"],
@@ -34,7 +45,9 @@ const TEXT := {
 		"apps": "Apps I may open...", "skin": "Apprentice", "ptt": "Command key: %s...", "ptt_default": "Right Ctrl",
 		"ptt_pick": "Press the key you'll hold for commands (Esc: keep the old one)",
 		"no_ollama": "Better questions: get Ollama (free)...",
-		"no_model": "Better questions: download the model (~1 GB)...",
+		"no_model": "Better questions: download %s (%s)...", "model": "Question model",
+		"mic_blocked": "Windows microphone permission is off: open Settings...",
+		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
 		"first_hint": "Right-click me for the microphone, language and more"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
@@ -44,7 +57,9 @@ const TEXT := {
 		"apps": "Açabileceğim uygulamalar...", "skin": "Çırak", "ptt": "Komut tuşu: %s...", "ptt_default": "Sağ Ctrl",
 		"ptt_pick": "Komut için basılı tutacağın tuşa bas (Esc: eskisi kalsın)",
 		"no_ollama": "Daha iyi sorular: Ollama'yı indir (ücretsiz)...",
-		"no_model": "Daha iyi sorular: modeli indir (~1 GB)...",
+		"no_model": "Daha iyi sorular: %s indir (%s)...", "model": "Soru modeli",
+		"mic_blocked": "Windows mikrofon izni kapalı: Ayarlar'ı aç...",
+		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
 		"first_hint": "Mikrofon, dil ve fazlası için bana sağ tıkla"},
 }
@@ -67,6 +82,9 @@ var ptt_vk := 0xA3  ## push-to-talk key as a Windows key code; the listener pick
 var ptt_name := ""  ## "" = Right Ctrl, never changed
 var paused_by = null  ## null = listening; "" or an app name = paused by a call
 var brain := "ok"  ## questions: "ok" (local model), "no_model", "no_ollama" (from the listener)
+var model := ""  ## the question model the listener uses (it keeps the choice in model.txt)
+var model_menu := PopupMenu.new()
+var _told_mic_blocked := false
 
 var _pressed := false
 var _dragging := false
@@ -138,6 +156,11 @@ func _ready() -> void:
 	skin_menu.id_pressed.connect(func(id): _set_skin(SKINS[id]))
 	menu.add_child(skin_menu)
 	menu.add_submenu_node_item("", skin_menu, SKIN_ID)
+	for i in MODELS.size():
+		model_menu.add_radio_check_item("", i)
+	model_menu.id_pressed.connect(func(id): model_picked.emit(MODELS[id]))  # the listener answers with "brain"
+	menu.add_child(model_menu)
+	menu.add_submenu_node_item("", model_menu, MODEL_ID)
 	menu.add_item("", APPS_ID)
 	menu.add_item("", PTT_ID)
 	menu.add_separator()
@@ -166,6 +189,7 @@ func _ready() -> void:
 		link.send({"type": "ptt_key", "vk": ptt_vk}))
 	pick_ptt_key.connect(func(): link.send({"type": "pick_ptt_key"}))
 	pull_model.connect(func(): link.send({"type": "pull_model"}))
+	model_picked.connect(func(n): link.send({"type": "model", "name": n}))
 	mic_device_changed.connect(func(n): link.send({"type": "mic_device", "name": n}))
 	edit_apps.connect(func(): link.send({"type": "edit_apps"}))
 	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
@@ -271,6 +295,8 @@ func _on_menu(id: int) -> void:
 		PTT_ID:
 			apprentice.handle({"type": "say", "text": ui(lang, "ptt_pick")})
 			pick_ptt_key.emit()  # the listener waits for the key and answers with "ptt_key"
+		MICPERM_ID:
+			OS.shell_open("ms-settings:privacy-microphone")  # the user turns it on; we never change it
 		BRAIN_ID:
 			if brain == "no_model":
 				pull_model.emit()  # the listener downloads it and tells progress in the bubble
@@ -293,7 +319,11 @@ func _on_link_message(msg: Dictionary) -> void:
 				_save()
 				apprentice.handle({"type": "say", "text": ui(lang, "first_hint")})
 		"brain":
+			model = str(msg.get("model", model))
 			_set_brain(str(msg.get("state", "ok")))
+			_refresh_menu()  # ticks the model even when the state didn't change
+		"mic_blocked":
+			_set_mic_blocked(bool(msg.get("blocked", false)))
 		"ptt_key":
 			ptt_vk = int(msg.get("vk", 0xA3))  # JSON numbers arrive as floats
 			ptt_name = str(msg.get("name", ""))
@@ -317,8 +347,16 @@ func _set_paused(who) -> void:
 
 
 ## Menu line for better questions: get Ollama, or download the model; none once the model answers.
-static func brain_text(l: String, state: String) -> String:
+static func brain_text(l: String, state: String, m: String) -> String:
+	if state == "no_model":
+		var i := MODELS.find(m)
+		return ui(l, "no_model") % [m, MODEL_SIZE[i] if i >= 0 else "?"]
 	return "" if state == "ok" else ui(l, state)
+
+
+## "qwen2.5:3b · 2 GB · better Turkish; ..." for the Question model submenu.
+static func model_label(l: String, i: int) -> String:
+	return "%s · %s · %s" % [MODELS[i], MODEL_SIZE[i], MODEL_NOTE.get(l, MODEL_NOTE["en"])[i]]
 
 
 func _set_brain(state: String) -> void:
@@ -332,6 +370,22 @@ func _set_brain(state: String) -> void:
 		menu.add_item("", BRAIN_ID)
 		menu.set_item_index(menu.get_item_index(BRAIN_ID), menu.get_item_count() - 3)  # above the separator
 	_refresh_menu()
+
+
+## Windows' mic privacy switch is off: a menu line to Settings, and the apprentice says it once.
+func _set_mic_blocked(blocked: bool) -> void:
+	var idx := menu.get_item_index(MICPERM_ID)
+	if not blocked:
+		if idx >= 0:
+			menu.remove_item(idx)
+		return
+	if idx < 0:
+		menu.add_item("", MICPERM_ID)
+		menu.set_item_index(menu.get_item_index(MICPERM_ID), 0)  # top: it explains the silence
+	_refresh_menu()
+	if not _told_mic_blocked:
+		_told_mic_blocked = true
+		apprentice.handle({"type": "say", "text": ui(lang, "mic_blocked_say")})
 
 
 func _mic_names() -> Array:
@@ -396,7 +450,13 @@ func _refresh_menu() -> void:
 	if paused_by != null:
 		menu.set_item_text(menu.get_item_index(PAUSE_ID), pause_text(lang, paused_by))
 	if menu.get_item_index(BRAIN_ID) >= 0:
-		menu.set_item_text(menu.get_item_index(BRAIN_ID), brain_text(lang, brain))
+		menu.set_item_text(menu.get_item_index(BRAIN_ID), brain_text(lang, brain, model))
+	if menu.get_item_index(MICPERM_ID) >= 0:
+		menu.set_item_text(menu.get_item_index(MICPERM_ID), ui(lang, "mic_blocked"))
+	menu.set_item_text(menu.get_item_index(MODEL_ID), ui(lang, "model"))
+	for i in MODELS.size():
+		model_menu.set_item_text(i, model_label(lang, i))
+		model_menu.set_item_checked(i, MODELS[i] == model)
 
 
 func _save() -> void:

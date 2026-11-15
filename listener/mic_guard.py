@@ -68,6 +68,22 @@ _meter_at = 0.0
 METER_REFRESH = 60  # seconds; the default output changes when headphones go in or out
 
 
+def _reg_value(hive: str, path: str):
+    root = winreg.HKEY_LOCAL_MACHINE if hive == "HKLM" else winreg.HKEY_CURRENT_USER
+    try:
+        with winreg.OpenKey(root, path) as k:
+            return winreg.QueryValueEx(k, "Value")[0]
+    except OSError:
+        return None
+
+
+def mic_allowed(read=_reg_value) -> bool:
+    """Windows' privacy switches for the mic (device, this user, desktop apps). Any "Deny" = the
+    listener only gets silence. Read only: turning it on is the user's choice in Settings."""
+    keys = [("HKLM", _STORE), ("HKCU", _STORE), ("HKCU", _STORE + r"\NonPackaged")]
+    return all(read(h, p) != "Deny" for h, p in keys)
+
+
 def speaker_busy(threshold: float = 0.02) -> bool:
     global _meter, _meter_at
     import time

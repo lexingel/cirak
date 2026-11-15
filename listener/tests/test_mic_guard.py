@@ -33,3 +33,14 @@ def test_mic_user_names_the_app():
     from mic_guard import mic_user
     assert mic_user({"C:#Users#x#Discord.exe": (5, 0)}, SELF) == "Discord.exe"
     assert mic_user({"C:#Users#x#Discord.exe": (5, 9)}, SELF) is None
+
+
+def test_mic_permission_off_anywhere_means_blocked():
+    import mic_guard as g
+    allow = lambda hive, path: "Allow"
+    assert g.mic_allowed(allow) is True
+    assert g.mic_allowed(lambda hive, path: None) is True  # never set: Windows' default is on
+    desktop_off = lambda hive, path: "Deny" if path.endswith("NonPackaged") else "Allow"
+    assert g.mic_allowed(desktop_off) is False  # "let desktop apps access your microphone" off
+    device_off = lambda hive, path: "Deny" if hive == "HKLM" else "Allow"
+    assert g.mic_allowed(device_off) is False

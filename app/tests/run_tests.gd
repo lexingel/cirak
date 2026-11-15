@@ -146,9 +146,15 @@ func test_command_menu() -> void:
 	check(MainScript.ui("tr", "apps").begins_with("Açabileceğim"), "app list menu text")
 	check(MainScript.ptt_label("en", "").contains("Right Ctrl"), "command key defaults to Right Ctrl")
 	check(MainScript.ptt_label("tr", "F8").contains("F8"), "command key line names the picked key")
-	check(MainScript.brain_text("tr", "no_ollama").contains("Ollama"), "menu offers Ollama when it is missing")
-	check(MainScript.brain_text("en", "no_model").contains("GB"), "menu offers the model download with its size")
-	check(MainScript.brain_text("en", "ok") == "", "no line when questions come from the model")
+	check(MainScript.brain_text("tr", "no_ollama", "").contains("Ollama"), "menu offers Ollama when it is missing")
+	check(MainScript.brain_text("en", "no_model", "qwen2.5:3b").contains("2 GB"), "menu offers the chosen model's download with its size")
+	check(MainScript.brain_text("en", "ok", "qwen2.5:3b") == "", "no line when questions come from the model")
+	check(MainScript.MODELS == ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"], "the listener's model choices")
+	for l in ["en", "tr"]:
+		for i in MainScript.MODELS.size():
+			var t: String = MainScript.model_label(l, i)
+			check(t.begins_with(MainScript.MODELS[i]) and t.contains("GB"), "%s model line %d names it, its size and a note" % [l, i])
+	check(MainScript.ui("tr", "mic_blocked").contains("Ayarlar"), "blocked mic line says where to fix it")
 	check(MainScript.ui("en", "first_hint").contains("Right-click"), "first start tells where the menu is")
 	m.free()
 
