@@ -90,3 +90,18 @@ def test_gpu_failure_mid_transcribe_falls_back_to_cpu(monkeypatch):
     monkeypatch.setattr(hearing, "_load", lambda device: Gpu() if device == "cuda" else Cpu())
     assert hearing.transcribe(np.zeros(16000, "float32")) == "what comes next"
     assert hearing.transcribe(np.zeros(16000, "float32")) == "what comes next"  # stays on CPU
+
+
+def test_bye_closes_the_mic_before_exiting():
+    import main
+    calls = []
+
+    class Mic:
+        def close(self):
+            calls.append("close")
+
+    main.quit_cleanly(Mic(), exit=lambda code: calls.append(("exit", code)))
+    assert calls == ["close", ("exit", 0)]
+    calls.clear()
+    main.quit_cleanly(None, exit=lambda code: calls.append(("exit", code)))  # no mic: still exits
+    assert calls == [("exit", 0)]

@@ -24,6 +24,17 @@ IDLE_EXIT = 10  # seconds without the app -> quit, so no orphan mic stays open
 SERVE_KW = {"origins": [None]}
 
 
+def quit_cleanly(hearing, exit=os._exit):
+    """Close the mic stream properly, then exit. A hard kill mid-stream once took a USB audio
+    interface (and the USB controller it sat on) down with it."""
+    try:
+        if hearing:
+            hearing.close()
+    except Exception as e:
+        print("listener: closing mic:", e, file=sys.stderr)
+    exit(0)
+
+
 def open_hearing(make):
     """The mic, or None if there is none (unplugged, no device): typing still works, no crash loop."""
     try:
@@ -82,6 +93,8 @@ async def run():
                     msg = json.loads(raw)
                 except ValueError:
                     continue
+                if isinstance(msg, dict) and msg.get("type") == "bye":  # the app is closing
+                    quit_cleanly(hearing)
                 work.put((core.on_client, msg))
         except websockets.ConnectionClosed:
             pass  # the app closing without a goodbye is normal, not a log entry
@@ -108,9 +121,7 @@ async def run():
                     hearing = None
             idle = 0 if clients else idle + 1
             if idle >= IDLE_EXIT:
-                if hearing:
-                    hearing.stop()
-                os._exit(0)
+                quit_cleanly(hearing)
 
 
 if __name__ == "__main__":

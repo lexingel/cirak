@@ -8,6 +8,7 @@ signal connected
 const URL := "ws://127.0.0.1:47613"
 const RETRY_SECONDS := 2.0
 const CONNECT_TIMEOUT := 3.0  ## a connect to a dead port can hang in SYN_SENT forever on Windows
+const BYE_WAIT_MS := 3000
 const RELAUNCH_SECONDS := 10.0  ## backoff, so a listener that keeps dying (no mic) is not hammered
 
 var _ws := WebSocketPeer.new()
@@ -85,6 +86,21 @@ func send(msg: Dictionary) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
-		if _pid > 0:
-			OS.kill(_pid)
-			_pid = -1
+		_stop_listener()
+
+
+## Ask the listener to close its mic and leave; a hard kill mid-stream once took a USB audio
+## interface (and its USB controller) down. Kill only if it hangs.
+func _stop_listener() -> void:
+	if _pid <= 0:
+		return
+	if _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_ws.send_text(JSON.stringify({"type": "bye"}))
+		var until := Time.get_ticks_msec() + BYE_WAIT_MS
+		while OS.is_process_running(_pid) and Time.get_ticks_msec() < until:
+			_ws.poll()
+			OS.delay_msec(50)
+		if OS.is_process_running(_pid):
+			OS.kill(_pid)  # it got "bye" and still hangs
+	# not connected: leave it; it quits on its own (cleanly) after 10 s without the app
+	_pid = -1
