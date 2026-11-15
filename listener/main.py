@@ -7,19 +7,28 @@ import sys
 import threading
 from pathlib import Path
 
-# pythonw has no console: send errors to a file (errors only, never what the user said)
+from paths import DATA
+
+# pythonw has no console: send errors to a file (errors only, never what the user said).
+# Per-user folder, not next to the code: an install under Program Files can't write there.
 if sys.stderr is None:
-    sys.stderr = sys.stdout = open(Path(__file__).with_name("listener.log"), "a", buffering=1, encoding="utf-8")
+    DATA.mkdir(parents=True, exist_ok=True)
+    sys.stderr = sys.stdout = open(DATA / "listener.log", "a", buffering=1, encoding="utf-8")
 
 import websockets
 
+import apps
+import assistants
+import commands
+import media
 import mic_guard
 from asker import ask, ask_local
-from hearing import Hearing, input_mics, transcribe
+from hearing import HOTWORDS, Hearing, input_mics, transcribe
 from listener_core import Listener
 
 PORT = 47613
 IDLE_EXIT = 10  # seconds without the app -> quit, so no orphan mic stays open
+PTT_KEY = 0xA3  # right Ctrl: held = push-to-talk (a command, heard even over music)
 # Browsers always send an Origin header; the Godot app sends none. Only Origin-less clients may connect.
 SERVE_KW = {"origins": [None]}
 
@@ -33,6 +42,35 @@ def quit_cleanly(hearing, exit=os._exit):
     except Exception as e:
         print("listener: closing mic:", e, file=sys.stderr)
     exit(0)
+
+
+def ptt_held() -> bool:
+    import ctypes
+    return bool(ctypes.windll.user32.GetAsyncKeyState(PTT_KEY) & 0x8000)
+
+
+def make_actions(speaker_busy, spawn):
+    """What each spoken command does. Every fn(arg, lang, say) returns the bubble text."""
+    def do_media(action, lang, say):
+        return commands.reply(lang, media.run(action, speaker_busy()))
+
+    def do_open(spoken, lang, say):
+        target = apps.find(spoken, apps.load())
+        if not target:
+            return commands.reply(lang, "no_app", spoken.split("'")[0].capitalize())
+        apps.launch(target)
+        return commands.reply(lang, "opening", target)
+
+    def do_ask(text, lang, say):
+        def later():  # 5-20 s: off the worker thread so listening goes on
+            say(assistants.ask_claude(text, lang) or commands.reply(lang, "no_claude"))
+        spawn(later)
+        return commands.reply(lang, "asking", text)
+
+    def do_task(text, lang, say):
+        return commands.reply(lang, "task" if assistants.open_claude_task(text) else "no_claude")
+
+    return {"media": do_media, "open": do_open, "ask_claude": do_ask, "claude_task": do_task}
 
 
 def open_hearing(make):
@@ -57,7 +95,10 @@ async def run():
 
     core = Listener(send=send, transcribe=transcribe, ask=ask,
                     call_busy=lambda: mic_guard.mic_user(mic_guard.read_mic_entries(), mic_guard.own_exes()),
-                    speaker_busy=mic_guard.speaker_busy)
+                    speaker_busy=mic_guard.speaker_busy,
+                    actions=make_actions(mic_guard.speaker_busy,
+                                         lambda fn: threading.Thread(target=fn, daemon=True).start()),
+                    transcribe_cmd=lambda a, lang: transcribe(a, lang, HOTWORDS))
     core.mic_on = False  # the mic stays shut until the app sends its saved setting (it does on connect)
 
     # Transcribing and asking are slow; one worker thread keeps them off the audio callback.
@@ -80,7 +121,9 @@ async def run():
     def make_hearing():
         return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
                                             on_end=lambda audio: work.put((core.speech_end, audio)),
-                                            device=core.device))
+                                            device=core.device, ptt=ptt_held,
+                                            on_ptt_start=lambda: work.put((core.ptt_start, None)),
+                                            on_ptt_end=lambda audio: work.put((core.ptt_end, audio))))
 
     hearing = make_hearing()
     device = core.device
@@ -102,6 +145,9 @@ async def run():
                     continue
                 if isinstance(msg, dict) and msg.get("type") == "bye":  # the app is closing
                     quit_cleanly(hearing)
+                if isinstance(msg, dict) and msg.get("type") == "edit_apps":  # menu: "App list..."
+                    work.put((apps.edit, None))
+                    continue
                 work.put((core.on_client, msg))
         except websockets.ConnectionClosed:
             pass  # the app closing without a goodbye is normal, not a log entry

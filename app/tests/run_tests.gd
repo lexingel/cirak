@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -132,3 +132,17 @@ func test_small_polish() -> void:
 	check(a.sprite.speed_scale >= 0.9 and a.sprite.speed_scale <= 1.1, "stirring tempo wobbles a little")
 	a.handle({"type": "speech_start"})
 	check(a.sprite.speed_scale == 1.0, "other poses at normal speed")
+
+
+func test_say() -> void:
+	var a = new_apprentice()
+	a.handle({"type": "say", "text": "Sonraki şarkı"})
+	check(a.state == a.State.NODDING, "a done command nods, no question pose")
+	check(a.bubble.visible, "and shows what it did")
+
+
+func test_command_menu() -> void:
+	var m = MainScript.new()
+	check(MainScript.ui("tr", "apps").begins_with("Açabileceğim"), "app list menu text")
+	check(MainScript.ui("en", "ptt").contains("Right Ctrl"), "push-to-talk hint names the key")
+	m.free()

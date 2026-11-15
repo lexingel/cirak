@@ -43,7 +43,10 @@ func _launch() -> void:
 	# editor run: app/ next to listener/; exported build: build/Cirak.exe next to listener/
 	var base := ProjectSettings.globalize_path("res://") if OS.has_feature("editor") else OS.get_executable_path().get_base_dir()
 	var listener := base.path_join("../listener").simplify_path()
-	var py := listener.path_join(".venv/Scripts/pythonw.exe")
+	# a release ships its own Python next to the code; a dev checkout uses the venv
+	var py := listener.path_join("python/pythonw.exe")
+	if not FileAccess.file_exists(py):
+		py = listener.path_join(".venv/Scripts/pythonw.exe")
 	if not FileAccess.file_exists(py):
 		# no venv -> a bare system Python would crash on every relaunch; stay quiet instead
 		push_warning("listener venv not found: " + py)

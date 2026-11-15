@@ -114,3 +114,15 @@ def test_whisper_segments_it_doubts_are_dropped():
             S(text=" thanks for watching", no_speech_prob=0.8, avg_logprob=-0.3),
             S(text=" mumble", no_speech_prob=0.1, avg_logprob=-1.5)]
     assert keep(segs) == "fixing the menu"
+
+
+def test_push_to_talk_keeps_every_block_until_release():
+    import numpy as np
+    from hearing import PushToTalk
+    held, got, started = [True], [], []
+    p = PushToTalk(lambda: held[0], lambda: started.append(1), got.append)
+    quiet = np.zeros(480, "float32")
+    assert p.feed(quiet) and p.feed(quiet)  # quiet blocks count too: the key decides
+    held[0] = False
+    assert p.feed(quiet) and len(got) == 1 and len(got[0]) == 960 and started == [1]
+    assert not p.feed(quiet)  # back to normal listening

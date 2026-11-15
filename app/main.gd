@@ -7,6 +7,7 @@ signal mic_changed(on: bool)
 signal frequency_changed(level: String)
 signal lang_changed(lang: String)
 signal mic_device_changed(name: String)
+signal edit_apps
 
 const SETTINGS := "user://settings.cfg"
 const DRAG_SLOP := 4
@@ -14,15 +15,19 @@ const LEVELS := ["low", "mid", "high"]
 const LANGS := ["en", "tr"]
 const PAUSE_ID := 5
 const MIC_ID := 6
+const APPS_ID := 7
+const PTT_ID := 8
 const TEXT := {
 	"en": {"mic_off": "Turn mic off", "mic_on": "Turn mic on", "frequency": "Question frequency",
 		"low": "Rarely", "mid": "Sometimes", "high": "Often", "language": "Language",
 		"close": "Close", "placeholder": "What are you working on?", "paused": "Listening paused",
-		"microphone": "Microphone", "default_mic": "Windows default"},
+		"microphone": "Microphone", "default_mic": "Windows default",
+		"apps": "Apps I may open...", "ptt": "Hold Right Ctrl to give a command"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
-		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı"},
+		"microphone": "Mikrofon", "default_mic": "Windows varsayılanı",
+		"apps": "Açabileceğim uygulamalar...", "ptt": "Komut için Sağ Ctrl'ye basılı tut"},
 }
 
 var apprentice: Apprentice
@@ -92,6 +97,9 @@ func _ready() -> void:
 	menu.add_submenu_node_item("", freq_menu, 1)
 	menu.add_submenu_node_item("", lang_menu, 3)
 	menu.add_submenu_node_item("", mic_menu, MIC_ID)
+	menu.add_item("", APPS_ID)
+	menu.add_item("", PTT_ID)
+	menu.set_item_disabled(menu.get_item_index(PTT_ID), true)  # a hint, not a button
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -115,6 +123,7 @@ func _ready() -> void:
 		link.send({"type": "lang", "lang": lang})
 		link.send({"type": "mic_device", "name": mic_device}))
 	mic_device_changed.connect(func(n): link.send({"type": "mic_device", "name": n}))
+	edit_apps.connect(func(): link.send({"type": "edit_apps"}))
 	lang_changed.connect(func(l): link.send({"type": "lang", "lang": l}))
 	typed.connect(func(t): link.send({"type": "typed", "text": t}))
 	mic_changed.connect(func(on): link.send({"type": "mic", "on": on}))
@@ -213,6 +222,8 @@ func _on_menu(id: int) -> void:
 			_refresh_menu()
 		2:
 			get_tree().quit()
+		APPS_ID:
+			edit_apps.emit()  # the listener opens its apps.json in Notepad
 
 
 func _on_link_message(msg: Dictionary) -> void:
@@ -281,6 +292,8 @@ func _refresh_menu() -> void:
 	for i in LANGS.size():
 		lang_menu.set_item_checked(i, LANGS[i] == lang)
 	menu.set_item_text(menu.get_item_index(MIC_ID), ui(lang, "microphone"))
+	menu.set_item_text(menu.get_item_index(APPS_ID), ui(lang, "apps"))
+	menu.set_item_text(menu.get_item_index(PTT_ID), ui(lang, "ptt"))
 	mic_menu.clear()
 	var names := _mic_names()
 	for i in names.size():

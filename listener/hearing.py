@@ -6,6 +6,8 @@ BLOCK = 480  # 30 ms
 START_BLOCKS = 9  # ~270 ms of sustained sound before it counts as speech (key clicks don't)
 SILENCE_END = 1.5  # seconds of quiet that ends an utterance
 MAX_SECONDS = 30  # steady noise (fan, hum) never ends on its own; cut it here
+PTT_MAX = 15  # seconds; a push-to-talk key stuck down still ends
+HOTWORDS = "Çırak, Claude"  # spelling help, push-to-talk only (app names here pushed Turkish into English)
 
 
 class Detector:
@@ -74,10 +76,12 @@ class Loudness:
 
 class Hearing:
     # ponytail: energy VAD + noise floor, swap for silero if noisy rooms still misfire
-    def __init__(self, on_start, on_end, threshold: float = 0.015, device: str = ""):
+    def __init__(self, on_start, on_end, threshold: float = 0.015, device: str = "",
+                 ptt=None, on_ptt_start=None, on_ptt_end=None):
         import sounddevice as sd
         self.loud = Loudness(threshold)
         self.detector = Detector(on_start, on_end)
+        self.ptt = PushToTalk(ptt, on_ptt_start, on_ptt_end) if ptt else None
         self._stream = sd.InputStream(device=device_index(sd.query_devices(), device),
                                       samplerate=RATE, channels=1, blocksize=BLOCK,
                                       dtype="float32", callback=self._cb)
@@ -95,7 +99,32 @@ class Hearing:
 
     def _cb(self, data, frames, t, status):
         block = data[:, 0].copy()
+        if self.ptt and self.ptt.feed(block):
+            self.detector.reset()  # held key: this is a command, not narration
+            return
         self.detector.feed(block, self.loud(float(np.sqrt(np.mean(block ** 2)))))
+
+
+class PushToTalk:
+    """While `held()` is true every block is kept, whatever its loudness (music may be playing);
+    on release the whole clip goes to on_end. Pure logic, fed one block at a time."""
+
+    def __init__(self, held, on_start, on_end):
+        self.held, self.on_start, self.on_end = held, on_start, on_end
+        self._chunks: list = []
+
+    def feed(self, block) -> bool:
+        """True if the block was taken (key held, or just released)."""
+        if self.held() and len(self._chunks) * BLOCK / RATE < PTT_MAX:
+            if not self._chunks:
+                self.on_start()
+            self._chunks.append(block)
+            return True
+        if self._chunks:
+            audio, self._chunks = np.concatenate(self._chunks), []
+            self.on_end(audio)
+            return True
+        return False
 
 
 _model = None
@@ -103,7 +132,10 @@ _model = None
 
 def _load(device: str):
     from faster_whisper import WhisperModel
-    return WhisperModel("small", device=device, compute_type="float16" if device == "cuda" else "int8")
+    from paths import DATA
+    # per-user model folder: first run downloads ~460 MB there, the install folder can stay read-only
+    return WhisperModel("small", device=device, compute_type="float16" if device == "cuda" else "int8",
+                        download_root=str(DATA / "models"))
 
 
 def keep(segs) -> str:
@@ -111,12 +143,12 @@ def keep(segs) -> str:
     return " ".join(s.text.strip() for s in segs if s.no_speech_prob < 0.6 and s.avg_logprob > -1.0)
 
 
-def _run(audio, lang):
-    segs, _ = _model.transcribe(audio, language=lang, vad_filter=True)
+def _run(audio, lang, hotwords=None):
+    segs, _ = _model.transcribe(audio, language=lang, vad_filter=True, hotwords=hotwords)
     return keep(segs)
 
 
-def transcribe(audio, lang: str = "en") -> str:
+def transcribe(audio, lang: str = "en", hotwords=None) -> str:
     global _model
     if _model is None:
         try:
@@ -124,7 +156,7 @@ def transcribe(audio, lang: str = "en") -> str:
         except Exception:
             _model = _load("cpu")
     try:
-        return _run(audio, lang)
+        return _run(audio, lang, hotwords)
     except Exception as e:
         # The GPU model can load and still fail on first use (a CUDA DLL missing): go CPU for good.
         if getattr(_model, "_cpu", False):
@@ -132,7 +164,7 @@ def transcribe(audio, lang: str = "en") -> str:
         print("listener: GPU transcribe failed, using CPU:", e, file=__import__("sys").stderr)
         _model = _load("cpu")
         _model._cpu = True
-        return _run(audio, lang)
+        return _run(audio, lang, hotwords)
 
 
 if __name__ == "__main__":

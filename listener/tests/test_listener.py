@@ -107,3 +107,46 @@ def test_call_starting_mid_speech_still_ends_listening():
     state["call"] = True; L.tick()
     L.speech_end(LONG)
     assert types(sent) == ["speech_start", "paused", "speech_end"]  # never stuck looking up
+
+
+def make_cmd(speaker=False):
+    L, sent, state, clock = make(speaker=speaker)
+    done = []
+    L.actions = {"media": lambda arg, lang, say: done.append(arg) or "ok " + arg}
+    return L, sent, done
+
+
+def test_wake_word_command_runs_and_is_not_narration():
+    L, sent, done = make_cmd()
+    L.speech_start(); L.speech_end("Çırak, sonraki şarkı")
+    assert done == ["next"]
+    assert types(sent) == ["speech_start", "say"] and sent[-1]["text"] == "ok next"
+    assert L.gate.context() == ""  # never fed to the question gate
+
+
+def test_push_to_talk_works_over_music_without_wake_word():
+    L, sent, done = make_cmd(speaker=True)
+    L.ptt_start(); L.ptt_end("duraklat")
+    assert done == ["pause"] and types(sent) == ["speech_start", "say"]
+
+
+def test_push_to_talk_respects_mic_off_and_calls():
+    L, sent, done = make_cmd()
+    L.mic_on = False
+    L.ptt_start(); L.ptt_end("duraklat")
+    assert done == [] and sent == []
+
+
+def test_unknown_command_says_so_and_failing_action_does_not_crash():
+    L, sent, done = make_cmd()
+    L.on_client({"type": "typed", "text": "çırak mavi kediler"})
+    assert sent[-1] == {"type": "say", "text": "Sorry, I didn't get that"}
+    L.actions["media"] = lambda *a: 1 / 0
+    L.on_client({"type": "typed", "text": "çırak sonraki"})
+    assert sent[-1]["type"] == "say"
+
+
+def test_empty_push_to_talk_just_ends_listening():
+    L, sent, done = make_cmd()
+    L.ptt_start(); L.ptt_end("  ")
+    assert types(sent) == ["speech_start", "speech_end"]

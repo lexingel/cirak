@@ -1,13 +1,18 @@
 """Listener logic, free of audio and network so it can be tested."""
 import time
 
+import commands
 from gate import QuestionGate
 
 
 class Listener:
-    def __init__(self, send, transcribe, ask, call_busy, speaker_busy, clock=time.monotonic):
+    def __init__(self, send, transcribe, ask, call_busy, speaker_busy, clock=time.monotonic,
+                 actions=None, transcribe_cmd=None):
         self.send, self.transcribe, self.ask = send, transcribe, ask
         self.call_busy, self.speaker_busy, self.clock = call_busy, speaker_busy, clock
+        # intent -> fn(arg, lang, say) returning the bubble text (or None if it says it later itself)
+        self.actions = actions or {}
+        self.transcribe_cmd = transcribe_cmd or transcribe
         self.gate = QuestionGate()
         self.mic_on = True
         self.paused = False
@@ -46,8 +51,43 @@ class Listener:
             return
         self._heard = False
         text = self.transcribe(audio, self.lang)
+        if self._command(text):
+            return
         if not self._narrate(text):  # a question goes straight from listening to asking
             self.send({"type": "speech_end"})
+
+    def ptt_start(self) -> None:
+        if self.listening:
+            self.send({"type": "speech_start"})
+
+    def ptt_end(self, audio) -> None:
+        """Push-to-talk released: what was said is a command, even over music (no speaker gate)."""
+        if not self.listening:
+            return
+        text = self.transcribe_cmd(audio, self.lang)
+        if not text.strip():
+            self.send({"type": "speech_end"})
+            return
+        self._command(text, ptt=True)
+
+    def say(self, text: str) -> None:
+        self.send({"type": "say", "text": text})
+
+    def _command(self, text: str, ptt: bool = False) -> bool:
+        """Runs it if it's a command; returns whether it was one (then it is never narration)."""
+        cmd = commands.parse(text, ptt)
+        if cmd is None:
+            return False
+        intent, arg = cmd
+        act = self.actions.get(intent)
+        try:
+            msg = act(arg, self.lang, self.say) if act else commands.reply(self.lang, "unknown")
+        except Exception as e:
+            print("listener: command", intent, "failed:", e, file=__import__("sys").stderr)
+            msg = commands.reply(self.lang, "unknown")
+        if msg:
+            self.say(msg)
+        return True
 
     def _narrate(self, text: str) -> bool:
         """Adds what the user said; asks if it's time. Returns whether a question went out."""
@@ -63,7 +103,8 @@ class Listener:
     def on_client(self, msg: dict) -> None:
         t = msg.get("type")
         if t == "typed" and str(msg.get("text", "")).strip():
-            self._narrate(str(msg["text"]))
+            if not self._command(str(msg["text"])):
+                self._narrate(str(msg["text"]))
         elif t == "mic":
             self.mic_on = bool(msg.get("on"))
         elif t == "lang" and msg.get("lang") in ("en", "tr"):

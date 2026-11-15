@@ -77,6 +77,10 @@ func handle(msg: Dictionary) -> void:
 			shape_changed.emit()
 		"paused":
 			_enter(State.WORKING)
+		"say":  # a command was done (or not): a short note and a nod, no question pose
+			bubble.show_text(str(msg.get("text", "")))
+			_enter(State.NODDING)
+			shape_changed.emit()
 
 
 func on_typed(text: String) -> bool:
