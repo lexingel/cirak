@@ -2,7 +2,6 @@
 import ctypes
 import time
 
-DEFAULT = 0xA3  # Right Ctrl
 ESC = 0x1B
 GENERIC = (0x10, 0x11, 0x12)  # Shift/Ctrl/Alt "either side": always down with their left/right key
 MOUSE = range(0x01, 0x07)

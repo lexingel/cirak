@@ -40,6 +40,11 @@ func text() -> String:
 	return _label.text
 
 
+## A question is on screen (not a note).
+func asking() -> bool:
+	return visible and _question
+
+
 func show_text(t: String, question := false) -> void:
 	_question = question
 	_label.text = t

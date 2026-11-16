@@ -1,31 +1,7 @@
-import random, sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import random
 from asker import ask, FALLBACK
 
 NO_LOCAL = lambda ctx, lang: None
-
-
-class Boom:
-    class messages:
-        @staticmethod
-        def create(**k):
-            raise RuntimeError("offline")
-
-
-class Fake:
-    def __init__(self, text):
-        self.text, self.calls = text, []
-
-    @property
-    def messages(self):
-        outer = self
-
-        class M:
-            @staticmethod
-            def create(**k):
-                outer.calls.append(k)
-                return type("R", (), {"content": [type("C", (), {"text": outer.text})()]})()
-        return M
 
 
 def test_local_model_reply_is_used():
@@ -33,17 +9,14 @@ def test_local_model_reply_is_used():
     assert q == "Which button bugs you most?"
 
 
-def test_local_fails_no_key_falls_back_in_language(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_local_fails_falls_back_in_language():
     assert ask("x", lang="en", local=NO_LOCAL, rng=random.Random(1)) in FALLBACK["en"]
     assert ask("x", lang="tr", local=NO_LOCAL, rng=random.Random(1)) in FALLBACK["tr"]
 
 
 def test_narration_never_goes_online_even_with_a_key(monkeypatch):
     # README promise: only "ask/tell Claude" leave the PC; a dev key in the environment changes nothing
-    import asker
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
-    assert not hasattr(asker, "_haiku")
     assert ask("x", lang="en", local=NO_LOCAL, rng=random.Random(1)) in FALLBACK["en"]
 
 

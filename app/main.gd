@@ -32,6 +32,7 @@ const MOD_ID := 16
 const FULL_LISTEN_ID := 17
 const MORE_ID := 18
 const STATUS_ID := 19
+const TYPE_ID := 20
 const LOOK_STRIPS := ["working", "listening", "nodding", "asking"]  ## a mod look needs these; toss is optional
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
@@ -58,9 +59,9 @@ const TEXT := {
 		"mic_blocked": "Windows microphone permission is off: open Settings...",
 		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
-		"first_hint": "Hi! Tell me what you're working on. Right-click me for help",
+		"first_hint": "Hi! Tell me, or click me and type, what you're working on. Right-click me for help",
 		"hide": "Hide for an hour", "hide_bye": "Say \"Apprentice, come back\" when you want me",
-		"hide_no": "I can't hear you right now, so I couldn't come back. Turn the mic on first",
+		"hide_timer": "See you in an hour", "type": "Type to me...",
 		"settings": "Settings", "no_listener": "Not listening: the listener isn't running",
 		"no_mic": "No microphone found (typing still works)",
 		"calm": "Calm apprentice", "mods": "Mod folder...",
@@ -77,9 +78,9 @@ const TEXT := {
 		"mic_blocked": "Windows mikrofon izni kapalı: Ayarlar'ı aç...",
 		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
-		"first_hint": "Merhaba! Ne üzerinde çalıştığını anlat. Yardım için bana sağ tıkla",
+		"first_hint": "Merhaba! Ne üzerinde çalıştığını anlat ya da bana tıklayıp yaz. Yardım için bana sağ tıkla",
 		"hide": "1 saat saklan", "hide_bye": "Beni istediğinde \"Çırak, geri gel\" de",
-		"hide_no": "Şu an seni duyamıyorum, geri gelemezdim. Önce mikrofonu aç",
+		"hide_timer": "Bir saat sonra görüşürüz", "type": "Bana yaz...",
 		"settings": "Ayarlar", "no_listener": "Dinlemiyor: dinleyici çalışmıyor",
 		"no_mic": "Mikrofon bulunamadı (yazmak yine çalışır)",
 		"calm": "Sakin çırak", "mods": "Mod klasörü...",
@@ -220,6 +221,7 @@ func _ready() -> void:
 	more_menu.id_pressed.connect(_on_menu)
 	menu.add_child(more_menu)
 	menu.add_item("", HELP_ID)
+	menu.add_item("", TYPE_ID)
 	menu.add_item("", 0)
 	menu.add_item("", HIDE_ID)
 	menu.add_submenu_node_item("", freq_menu, 1)
@@ -329,6 +331,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _open_text_box() -> void:
+	# the question being answered stays readable inside the box
+	text_box.placeholder_text = apprentice.bubble.text() if apprentice.bubble.asking() else ui(lang, "placeholder")
 	apprentice.bubble.close(true)  # typing comes first; a waiting note shows after
 	text_box.visible = true
 	text_box.grab_focus()
@@ -337,6 +341,7 @@ func _open_text_box() -> void:
 
 func _close_text_box() -> void:
 	text_box.text = ""
+	text_box.placeholder_text = ui(lang, "placeholder")
 	text_box.visible = false
 	_update_passthrough()
 	apprentice.bubble.flush()
@@ -348,9 +353,14 @@ func _on_text_submitted(t: String) -> void:
 		apprentice.handle({"type": "say", "text": ui(lang, "no_listener")})
 		return
 	if apprentice.on_typed(t):
-		jars.add(5)  # a typed line counts like a few seconds of talk
+		jars.add(typed_seconds(t))
 		typed.emit(t)
 	_close_text_box()
+
+
+## A typed line fills the jar about as long as saying it would (1.5 s a word, at most a minute).
+static func typed_seconds(t: String) -> float:
+	return minf(t.split(" ", false).size() * 1.5, 60.0)
 
 
 func _on_text_box_input(event: InputEvent) -> void:
@@ -390,6 +400,8 @@ func _on_menu(id: int) -> void:
 			_refresh_menu()
 		HIDE_ID:
 			_ask_hide(HIDE_SECONDS)
+		TYPE_ID:
+			_open_text_box()
 		MICPERM_ID:
 			OS.shell_open("ms-settings:privacy-microphone")  # the user turns it on; we never change it
 		BRAIN_ID:
@@ -507,7 +519,7 @@ func _set_mic_blocked(blocked: bool) -> void:
 		menu.add_item("", MICPERM_ID)
 		menu.set_item_index(menu.get_item_index(MICPERM_ID), 0)  # top: it explains the silence
 	_refresh_menu()
-	if not _told_mic_blocked:
+	if not _told_mic_blocked and mic_on:  # the user turned the mic off: the silence is no news
 		_told_mic_blocked = true
 		apprentice.handle({"type": "say", "text": ui(lang, "mic_blocked_say")})
 
@@ -593,6 +605,7 @@ func _refresh_menu() -> void:
 	more_menu.set_item_text(more_menu.get_item_index(MODEL_ID), ui(lang, "model"))
 	menu.set_item_text(menu.get_item_index(HELP_ID), ui(lang, "help"))
 	menu.set_item_text(menu.get_item_index(HIDE_ID), ui(lang, "hide"))
+	menu.set_item_text(menu.get_item_index(TYPE_ID), ui(lang, "type"))
 	more_menu.set_item_text(more_menu.get_item_index(CALM_ID), ui(lang, "calm"))
 	more_menu.set_item_checked(more_menu.get_item_index(CALM_ID), apprentice.calm)
 	more_menu.set_item_text(more_menu.get_item_index(MOD_ID), ui(lang, "mods"))
@@ -682,16 +695,14 @@ func _mic_state() -> String:
 	return mic_state(mic_on, paused_by, mic_blocked, listener_up, no_mic)
 
 
-## "Hide for an hour" only while it can hear "come back": hidden, nothing on screen takes a click.
+## Can it hear "come back"? Hidden, nothing on screen takes a click; otherwise only the hour ends it.
 static func can_hide(state: String) -> bool:
 	return state == "on"
 
 
 func _ask_hide(seconds: int) -> void:
-	if not can_hide(_mic_state()):
-		apprentice.handle({"type": "say", "text": ui(lang, "hide_no")})
-		return
-	apprentice.bubble.show_text(ui(lang, "hide_bye"))  # the user just asked: replace any question
+	# can't hear "come back": it still goes, and its own timer brings it back
+	apprentice.bubble.show_text(ui(lang, "hide_bye" if can_hide(_mic_state()) else "hide_timer"))
 	get_tree().create_timer(3.0).timeout.connect(_hide_for.bind(seconds))  # time to read how to call it back
 
 

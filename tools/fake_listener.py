@@ -14,7 +14,7 @@ SCENE = [  # (seconds after connect, message)
     (2, {"type": "speech_start"}),
     (5, {"type": "speech_end"}),
     (7, {"type": "question", "text": "What comes after this part?"}),
-    (15, {"type": "paused", "reason": "call", "who": "Discord.exe"}),
+    (15, {"type": "paused", "who": "Discord.exe"}),
     (25, {"type": "resumed"}),
 ]
 

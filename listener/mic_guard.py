@@ -29,10 +29,6 @@ def mic_user(entries: dict[str, tuple[int, int]], self_exes):
     return None
 
 
-def mic_in_use_by_other(entries: dict[str, tuple[int, int]], self_exes) -> bool:
-    return mic_user(entries, self_exes) is not None
-
-
 def _read_children(key) -> dict[str, tuple[int, int]]:
     out = {}
     i = 0

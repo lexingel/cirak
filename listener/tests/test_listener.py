@@ -1,5 +1,3 @@
-import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from listener_core import Listener
 
 LONG = "şimdi menüdeki butonları tek tek hizalıyorum ve renklerini deniyorum"
@@ -85,7 +83,7 @@ def test_language_message_reaches_transcribe_and_ask():
 def test_pause_says_who_holds_the_mic():
     L, sent, state, _ = make()
     state["call"] = "Discord.exe"; L.tick()
-    assert sent == [{"type": "paused", "reason": "call", "who": "Discord.exe"}]
+    assert sent == [{"type": "paused", "who": "Discord.exe"}]
 
 
 def test_app_picks_a_mic():
@@ -250,6 +248,14 @@ def test_a_reconnecting_app_hears_about_a_call_still_on():
     L, sent, state, _ = make()
     assert L.hello() == []
     state["call"] = "Discord.exe"; L.tick()
-    assert L.hello() == [{"type": "paused", "reason": "call", "who": "Discord.exe"}]
+    assert L.hello() == [{"type": "paused", "who": "Discord.exe"}]
     state["call"] = False; L.tick()
     assert L.hello() == []
+
+
+def test_typed_slash_runs_a_command_without_the_wake_word():
+    L, sent, done = make_cmd()
+    L.on_client({"type": "typed", "text": "/sonraki şarkı"})
+    assert done == ["next"] and L.gate.context() == ""
+    L.on_client({"type": "typed", "text": "sonraki şarkı"})  # no slash, no wake word: narration
+    assert done == ["next"]

@@ -39,7 +39,7 @@ func test_states() -> void:
 	a.handle({"type": "question", "text": "Takıldığın yer neresi?"})
 	check(a.state == a.State.ASKING, "question -> asking")
 	check(a.bubble.visible and a.bubble.text() == "Takıldığın yer neresi?", "bubble shows question")
-	a.handle({"type": "paused", "reason": "call"})
+	a.handle({"type": "paused"})
 	check(a.state == a.State.WORKING, "paused -> working")
 	a.handle({"type": "nonsense"})
 	check(a.state == a.State.WORKING, "unknown message ignored")
@@ -278,12 +278,15 @@ func test_review_fixes() -> void:
 	check(MainScript.mic_state(true, null, false) == "on", "listener up, mic there -> on")
 	check(MainScript.can_hide("on") and not MainScript.can_hide("off") and not MainScript.can_hide("paused") and not MainScript.can_hide("none"),
 		"hide only while it can hear \"come back\"")
-	for k in ["settings", "no_listener", "no_mic", "hide_no"]:
+	for k in ["settings", "no_listener", "no_mic", "hide_timer", "type"]:
 		check(MainScript.ui("en", k) != "" and MainScript.ui("tr", k) != "", "label " + k)
 	var a = new_apprentice()
 	a.handle({"type": "question", "text": "Which part first?"})
 	a.handle({"type": "say", "text": "A jar is full"})
 	check(a.bubble.text() == "Which part first?", "a note waits while a question is up")
+	check(a.bubble.asking(), "a question on screen counts as asking (the text box shows it)")
+	check(MainScript.typed_seconds("one two three four") == 6.0 and MainScript.typed_seconds("x ".repeat(100)) == 60.0,
+		"a typed line fills the jar like saying it, at most a minute")
 	a.bubble.close()
 	check(a.bubble.visible and a.bubble.text() == "A jar is full", "and shows once the question is gone")
 	a.handle({"type": "say", "text": "Next song"})

@@ -1,5 +1,4 @@
-import asyncio, sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import asyncio
 import websockets
 from main import SERVE_KW
 

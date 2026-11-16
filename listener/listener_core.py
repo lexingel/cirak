@@ -37,7 +37,7 @@ class Listener:
         if busy and not self.paused:
             self.paused = True
             self.gate.pause()
-            msg = {"type": "paused", "reason": "call"}
+            msg = {"type": "paused"}
             if isinstance(busy, str):
                 msg["who"] = busy  # shown in the right-click menu, so a silent apprentice has a reason
             self._pause_msg = msg
@@ -165,8 +165,10 @@ class Listener:
     def on_client(self, msg: dict) -> None:
         t = msg.get("type")
         if t == "typed" and str(msg.get("text", "")).strip():
-            if not self._command(str(msg["text"])):
-                self._narrate(str(msg["text"]))
+            text = str(msg["text"]).strip()
+            # "/next song": typed commands need no wake word, like holding the command key
+            if not self._command(text.lstrip("/"), ptt=text.startswith("/")):
+                self._narrate(text.lstrip("/"))
         elif t == "mic":
             self.mic_on = bool(msg.get("on"))
         elif t == "lang" and msg.get("lang") in ("en", "tr"):

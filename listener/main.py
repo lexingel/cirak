@@ -25,7 +25,6 @@ import keys
 import media
 import mic_guard
 import screen
-from asker import ask, ask_local
 from hearing import HOTWORDS, Hearing, input_mics, transcribe
 from listener_core import Listener
 
@@ -119,7 +118,7 @@ async def run():
             # result is dropped on purpose: a send to a closing app is not worth a log line
             asyncio.run_coroutine_threadsafe(ws.send(data), loop).add_done_callback(lambda f: f.exception())
 
-    core = Listener(send=send, transcribe=transcribe, ask=ask,
+    core = Listener(send=send, transcribe=transcribe, ask=asker.ask,
                     call_busy=lambda: mic_guard.mic_user(mic_guard.read_mic_entries(), mic_guard.own_exes()),
                     speaker_busy=mic_guard.speaker_busy,
                     actions=make_actions(mic_guard.speaker_busy,
@@ -139,14 +138,14 @@ async def run():
 
     bg(apps.index)  # PowerShell, up to 20 s: now, not when the first "open" waits on it
     # state: None until Ollama was tried; mic: None until the privacy switches were read
-    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None, "full": None, "no_mic": False}
+    warm = {"state": None, "at": 0, "whisper": False, "lang": False, "app_mic": True, "pulling": False, "mic": None, "full": None, "no_mic": False}
 
     def brain_msg():
         return {"type": "brain", "state": warm["state"], "model": asker.LOCAL_MODEL}
 
     def warm_model(force=False):  # load the local model now, not on the first question; retried while Ollama boots
         state = asker.brain_state()
-        if state == "ok" and ask_local("warming up", "en") is None:
+        if state == "ok" and asker.ask_local("warming up", "en") is None:
             state = "no_ollama"  # listed but not answering
         if state != warm["state"] or force:
             warm["state"] = state
@@ -240,7 +239,13 @@ async def run():
                     threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
                     continue
                 work.put((core.on_client, (msg,)))
-                if isinstance(msg, dict) and msg.get("type") == "lang" and not warm["whisper"]:
+                if isinstance(msg, dict) and msg.get("type") == "mic":
+                    warm["app_mic"] = bool(msg.get("on"))
+                if isinstance(msg, dict) and msg.get("type") == "lang":
+                    warm["lang"] = True
+                # Whisper after the app's language (its bubbles speak it), and only once the mic is on:
+                # someone who only types never downloads ~460 MB or holds ~300 MB for it
+                if warm["lang"] and warm["app_mic"] and not warm["whisper"]:
                     warm["whisper"] = True
                     bg(warm_whisper)  # first run downloads ~460 MB: typing works meanwhile
         except websockets.ConnectionClosed:
