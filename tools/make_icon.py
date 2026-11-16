@@ -1,17 +1,25 @@
-"""Makes app/art/icon.ico for Cirak.exe from the apprentice's first listening frame.
+"""Makes app/art/icon.ico (Cirak.exe and the installer) from the Grok icon art_src/grok/icon.png.
 
-  listener\\.venv\\Scripts\\python tools\\make_icon.py      # Godot from $GODOT
+  python tools/make_icon.py
 
-An .ico here is just a header plus PNG images (Windows Vista+), so no image library is needed.
+The source is a ~28x28 pixel drawing upscaled to 1024 on magenta: key the magenta out (grok_import),
+snap it back to real pixels (Gizpix pix_snap, at $GIZPIX or D:\\Claude\\PixTools), centre it on a
+24x24 canvas, then 256 = 10x (+8 px margin), 48 = 2x, 32/16 = smooth downscales.
+An .ico here is just a header plus PNG images (Windows Vista+).
 """
-import os
+import io
 import struct
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).parent))
+import grok_import  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
+ART = 24  # art pixels per side
 SIZES = [256, 48, 32, 16]
 
 
@@ -26,12 +34,28 @@ def pack(pngs: list) -> bytes:
     return head + entries + data
 
 
-def main():
-    godot = os.environ.get("GODOT") or sys.exit("set GODOT to the Godot 4.7 executable")
+def frames(src: Path) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run([godot, "--headless", "--path", str(ROOT / "app"), "-s", "../tools/make_icon.gd", "--", tmp],
-                       check=True)
-        pngs = [(s, (Path(tmp) / f"icon_{s}.png").read_bytes()) for s in SIZES]
+        keyed, snap = Path(tmp) / "keyed.png", Path(tmp) / "snap.png"
+        grok_import.key_out(Image.open(src)).save(keyed)
+        grok_import.gizpix("pix_snap", keyed, snap, "--cells", 28, 28, "--tol", 1)
+        art = Image.open(snap).convert("RGBA")
+    art = art.crop(art.getbbox())
+    assert art.width <= ART and art.height <= ART, art.size
+    small = Image.new("RGBA", (ART, ART))
+    small.paste(art, ((ART - art.width) // 2, (ART - art.height) // 2))
+    big = Image.new("RGBA", (256, 256))
+    big.paste(small.resize((ART * 10, ART * 10), Image.NEAREST), (8, 8))
+    return {256: big, 48: small.resize((48, 48), Image.NEAREST),
+            32: big.resize((32, 32), Image.LANCZOS), 16: big.resize((16, 16), Image.LANCZOS)}
+
+
+def main():
+    pngs = []
+    for size, img in frames(ROOT / "art_src" / "grok" / "icon.png").items():
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        pngs.append((size, buf.getvalue()))
     out = ROOT / "app" / "art" / "icon.ico"
     out.write_bytes(pack(pngs))
     print(out, out.stat().st_size, "bytes")
