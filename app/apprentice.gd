@@ -23,6 +23,7 @@ var sprite := AnimatedSprite2D.new()
 var bubble := Bubble.new()
 var toss_timer := Timer.new()
 var calm := false  ## menu "Calm apprentice": stirs slowly, never tosses
+static var mod_root := ""  ## tests point this elsewhere; "" = %LOCALAPPDATA%\Cirak
 
 
 func _ready() -> void:
@@ -41,8 +42,19 @@ func _ready() -> void:
 	toss_timer.start(randf_range(TOSS_EVERY.x, TOSS_EVERY.y))
 
 
-## Which look: "" = the wizard (art/), otherwise a folder in art/skins/ (blacksmith, healer, ...).
+## The user's mod folder (own looks and questions), shared with the listener.
+static func mods() -> String:
+	if not mod_root.is_empty():
+		return mod_root
+	var base := OS.get_environment("LOCALAPPDATA")
+	return (base if not base.is_empty() else OS.get_user_data_dir()).path_join("Cirak")
+
+
+## Which look: "" = the wizard (art/), "mod/<name>" = the user's own (mod folder looks/<name>/),
+## otherwise a folder in art/skins/ (blacksmith, healer, ...).
 static func art_dir(skin: String) -> String:
+	if skin.begins_with("mod/"):
+		return mods().path_join("looks").path_join(skin.trim_prefix("mod/")) + "/"
 	return "res://art/" if skin.is_empty() else "res://art/skins/%s/" % skin
 
 
@@ -81,6 +93,8 @@ func _load_frames() -> SpriteFrames:
 ## One state's strip for a look, or null if it is missing.
 static func strip(s: String, name: String) -> Image:
 	var path := art_dir(s) + "apprentice_%s.png" % name
+	if not path.begins_with("res://"):  # a mod look: a plain png on disk
+		return Image.load_from_file(path) if FileAccess.file_exists(path) else null
 	if OS.has_feature("editor"):  # read the png itself: fresh art needs no reimport
 		return Image.load_from_file(ProjectSettings.globalize_path(path)) if FileAccess.file_exists(path) else null
 	var tex = load(path) if ResourceLoader.exists(path) else null  # export: the imported texture
@@ -133,7 +147,7 @@ func sprite_rect() -> Rect2:
 
 ## Plays the toss once if the apprentice is just stirring. Returns whether it started.
 func toss() -> bool:
-	if calm or state != State.WORKING or sprite.animation != ANIMS[State.WORKING][0]:
+	if calm or sprite.sprite_frames.get_frame_count(TOSS[0]) == 0 or state != State.WORKING or sprite.animation != ANIMS[State.WORKING][0]:
 		return false
 	sprite.play(TOSS[0])
 	return true

@@ -161,3 +161,20 @@ def test_breakdown_without_model_or_with_junk_is_none():
 def test_breakdown_that_copies_the_example_is_none():
     from asker import breakdown, STEPS
     assert breakdown("mutfağı toplamak", "tr", local=lambda s, u: STEPS["tr"][1][1]) is None
+
+
+def test_mod_questions(tmp_path):
+    from asker import mod_questions
+    d = tmp_path / "questions" / "tr"
+    d.mkdir(parents=True)
+    (d / "benim.txt").write_text("# yorum\nKahven bitti mi?\n\n  Bugün hangi şarkı?  \n", encoding="utf-8")
+    assert mod_questions("tr", tmp_path) == ["Kahven bitti mi?", "Bugün hangi şarkı?"]
+    assert mod_questions("en", tmp_path) == []
+
+
+def test_mod_questions_mix_in(monkeypatch):
+    import asker
+    monkeypatch.setattr(asker, "mod_questions", lambda lang, root=None: ["Mine?"])
+    rng = random.Random(1)
+    got = [ask("ctx", "en", local=lambda c, l: "Model question?", rng=rng) for _ in range(300)]
+    assert 60 < got.count("Mine?") < 140 and got.count("Model question?") > 150

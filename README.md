@@ -18,7 +18,10 @@ research on body doubling is still small, so take it as a gentle helper, not a t
 - **Small helpers, only when asked:** "let's start" (an opening question), "where was I" (your last
   two sentences), "break this down: ..." (3-5 small steps from the question model), "done for
   today" (three of your own sentences from the day, then forgotten). Nothing is saved to disk.
-- **Six looks:** wizard, blacksmith, healer, scribe, archer, cook.
+- **Six looks:** wizard, blacksmith, healer, scribe, archer, cook. Add your own, and your own
+  questions, in the mod folder (right-click menu; its README.txt explains the layout).
+- **A jar that slowly fills as you talk.** Full jars go on a little shelf in new colours. It never
+  empties: no numbers, no streaks, nothing lost on days off.
 - **English and Turkish.**
 - **Light on your PC:** idle it measured ~0% CPU for the app and ~0.1% for the listener, ~380 MB
   RAM together (the speech model). Turning speech into text takes a short burst of CPU. The optional

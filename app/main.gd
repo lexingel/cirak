@@ -28,6 +28,8 @@ const HELP_ID := 13
 const HIDE_ID := 14
 const HIDE_SECONDS := 3600
 const CALM_ID := 15
+const MOD_ID := 16
+const LOOK_STRIPS := ["working", "listening", "nodding", "asking"]  ## a mod look needs these; toss is optional
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
 const MODEL_NOTE := {
@@ -55,7 +57,8 @@ const TEXT := {
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
 		"first_hint": "Right-click me for the microphone, language and what I can do",
 		"hide": "Hide for an hour (say \"Apprentice, come back\")",
-		"calm": "Calm apprentice (no tossing)"},
+		"calm": "Calm apprentice (no tossing)", "mods": "Mod folder (own questions, looks)...",
+		"jar": "A jar is full, it's on the shelf now"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"off": "Hiç (sadece dinle)", "low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
 		"close": "Kapat", "placeholder": "Ne yapıyorsun?", "paused": "Dinleme duraklatıldı",
@@ -69,7 +72,8 @@ const TEXT := {
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
 		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla",
 		"hide": "1 saat saklan (\"Çırak, geri gel\" de)",
-		"calm": "Sakin çırak (malzeme atmaz)"},
+		"calm": "Sakin çırak (malzeme atmaz)", "mods": "Mod klasörü (kendi soruların, görünümlerin)...",
+		"jar": "Bir kavanoz doldu, rafa koydum"},
 }
 
 var apprentice: Apprentice
@@ -84,6 +88,9 @@ var lang_menu := PopupMenu.new()
 var mic_menu := PopupMenu.new()
 var skin_menu := PopupMenu.new()
 var skin := ""
+var skins: Array = []  ## SKINS + the user's own looks ("mod/<name>")
+var jars := Jars.new()
+var _talk_from := 0  ## ticks when the user started talking, 0 = not talking
 var mics: Array = []  ## mic names the listener reported; the menu lists "" (default) + these
 var mic_device := ""
 var ptt_vk := 0xA3  ## push-to-talk key as a Windows key code; the listener picks and names it
@@ -130,8 +137,9 @@ static func clamp_to_screen(pos: Vector2i, size: Vector2i, rect: Rect2i) -> Vect
 
 func _ready() -> void:
 	cfg.load(SETTINGS)
+	skins = SKINS + mod_looks(Apprentice.mods())
 	skin = cfg.get_value("prefs", "skin", "")
-	if not SKINS.has(skin):
+	if not skins.has(skin):
 		skin = ""
 	apprentice = preload("res://apprentice.tscn").instantiate()
 	apprentice.skin = skin
@@ -139,6 +147,13 @@ func _ready() -> void:
 	apprentice.position = Vector2(130, 220 - 72)
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
+	var r := apprentice.sprite_rect()
+	jars.jar_at = Vector2(r.position.x - 5 * Jars.PX - 6, r.end.y)
+	jars.shelf_at = Vector2(r.end.x + 2, r.end.y)
+	jars.seconds = cfg.get_value("prefs", "talk", 0.0)
+	jars.stepped.connect(_save)
+	jars.filled.connect(func(): apprentice.handle({"type": "say", "text": ui(lang, "jar")}))
+	add_child(jars)
 
 	text_box.position = Vector2(10, 30)
 	text_box.size = Vector2(240, 30)
@@ -161,11 +176,11 @@ func _ready() -> void:
 	menu.add_submenu_node_item("", freq_menu, 1)
 	menu.add_submenu_node_item("", lang_menu, 3)
 	menu.add_submenu_node_item("", mic_menu, MIC_ID)
-	for i in SKINS.size():
+	for i in skins.size():
 		skin_menu.add_radio_check_item("", i)
-		skin_menu.set_item_icon(i, Apprentice.preview(SKINS[i]))
+		skin_menu.set_item_icon(i, Apprentice.preview(skins[i]))
 		skin_menu.set_item_icon_max_width(i, 32)
-	skin_menu.id_pressed.connect(func(id): _set_skin(SKINS[id]))
+	skin_menu.id_pressed.connect(func(id): _set_skin(skins[id]))
 	menu.add_child(skin_menu)
 	menu.add_submenu_node_item("", skin_menu, SKIN_ID)
 	for i in MODELS.size():
@@ -178,6 +193,7 @@ func _ready() -> void:
 	menu.add_item("", HELP_ID)
 	menu.add_item("", HIDE_ID)
 	menu.add_check_item("", CALM_ID)
+	menu.add_item("", MOD_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -243,7 +259,9 @@ static func click_polygon(sprite: Rect2, top: Rect2) -> PackedVector2Array:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_save()  # the jar's last minutes
+	elif what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		_pressed = false  # a release we never saw must not leave a drag stuck on
 		if text_box.visible:
 			_close_text_box()
@@ -287,6 +305,7 @@ func _close_text_box() -> void:
 
 func _on_text_submitted(t: String) -> void:
 	if apprentice.on_typed(t):
+		jars.add(5)  # a typed line counts like a few seconds of talk
 		typed.emit(t)
 	_close_text_box()
 
@@ -304,7 +323,10 @@ func _on_menu(id: int) -> void:
 			_save()
 			_refresh_menu()
 		2:
+			_save()
 			get_tree().quit()
+		MOD_ID:
+			OS.shell_open(open_mods(Apprentice.mods()))
 		APPS_ID:
 			edit_apps.emit()  # the listener opens its apps.json in Notepad
 		PTT_ID:
@@ -331,6 +353,7 @@ func _on_menu(id: int) -> void:
 
 
 func _on_link_message(msg: Dictionary) -> void:
+	_count_talk(str(msg.get("type", "")))
 	match msg.get("type", ""):
 		"paused":
 			_set_paused(str(msg.get("who", "")))
@@ -487,9 +510,10 @@ func _refresh_menu() -> void:
 	menu.set_item_text(menu.get_item_index(MIC_ID), ui(lang, "microphone"))
 	menu.set_item_text(menu.get_item_index(APPS_ID), ui(lang, "apps"))
 	menu.set_item_text(menu.get_item_index(SKIN_ID), ui(lang, "skin"))
-	for i in SKINS.size():
-		skin_menu.set_item_text(i, SKIN_NAMES.get(lang, SKIN_NAMES["en"])[i])
-		skin_menu.set_item_checked(i, SKINS[i] == skin)
+	for i in skins.size():
+		var names: Array = SKIN_NAMES.get(lang, SKIN_NAMES["en"])
+		skin_menu.set_item_text(i, names[i] if i < names.size() else str(skins[i]).trim_prefix("mod/"))
+		skin_menu.set_item_checked(i, skins[i] == skin)
 	menu.set_item_text(menu.get_item_index(PTT_ID), ptt_label(lang, ptt_name))
 	mic_menu.clear()
 	var names := _mic_names()
@@ -508,6 +532,7 @@ func _refresh_menu() -> void:
 	menu.set_item_text(menu.get_item_index(HIDE_ID), ui(lang, "hide"))
 	menu.set_item_text(menu.get_item_index(CALM_ID), ui(lang, "calm"))
 	menu.set_item_checked(menu.get_item_index(CALM_ID), apprentice.calm)
+	menu.set_item_text(menu.get_item_index(MOD_ID), ui(lang, "mods"))
 	queue_redraw()  # the mic dot
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
@@ -522,6 +547,7 @@ func _save() -> void:
 	cfg.set_value("prefs", "mic_device", mic_device)
 	cfg.set_value("prefs", "skin", skin)
 	cfg.set_value("prefs", "calm", apprentice.calm)
+	cfg.set_value("prefs", "talk", jars.seconds)
 	cfg.set_value("prefs", "ptt_vk", ptt_vk)
 	cfg.set_value("prefs", "ptt_name", ptt_name)
 	cfg.save(SETTINGS)
@@ -538,7 +564,7 @@ func _update_passthrough() -> void:
 	if text_box.visible:
 		var box := Rect2(text_box.position, text_box.size)
 		top = box if not top.has_area() else top.merge(box)
-	DisplayServer.window_set_mouse_passthrough(click_polygon(apprentice.sprite_rect(), top))
+	DisplayServer.window_set_mouse_passthrough(click_polygon(apprentice.sprite_rect().merge(jars.area()), top))
 
 
 ## Should the apprentice step aside? A fullscreen app on its monitor, or the user said "hide".
@@ -587,3 +613,51 @@ func _draw() -> void:
 	if st == "off":
 		draw_line(p + Vector2(-2, -2), p + Vector2(2, 2), Color.WHITE, 1.0)
 		draw_line(p + Vector2(2, -2), p + Vector2(-2, 2), Color.WHITE, 1.0)
+
+
+## Talking time fills the jar: from speech_start to the end of that sentence, at most a minute each.
+func _count_talk(t: String) -> void:
+	if t == "speech_start":
+		_talk_from = Time.get_ticks_msec()
+	elif t in ["speech_end", "question", "say"] and _talk_from > 0:
+		jars.add(minf((Time.get_ticks_msec() - _talk_from) / 1000.0, 60.0))
+		_talk_from = 0
+
+
+## The user's own looks: folders in <mods>/looks with every needed strip, as "mod/<name>".
+static func mod_looks(root: String) -> Array:
+	var out := []
+	var looks := root.path_join("looks")
+	if not DirAccess.dir_exists_absolute(looks):
+		return out
+	for name in DirAccess.get_directories_at(looks):
+		if LOOK_STRIPS.all(func(n): return FileAccess.file_exists(looks.path_join(name).path_join("apprentice_%s.png" % n))):
+			out.append("mod/" + name)
+	return out
+
+
+## Makes the mod folder (with a how-to) the first time; returns its path for the file browser.
+static func open_mods(root: String) -> String:
+	for sub in ["looks", "questions/en", "questions/tr"]:
+		DirAccess.make_dir_recursive_absolute(root.path_join(sub))
+	var readme := root.path_join("README.txt")
+	if not FileAccess.file_exists(readme):
+		var f := FileAccess.open(readme, FileAccess.WRITE)
+		f.store_string(MOD_README)
+		f.close()
+	return root
+
+
+const MOD_README := """Çırak mod klasörü / Çırak mod folder
+
+questions\\tr\\*.txt  ve/and  questions\\en\\*.txt
+  Her satıra bir soru; # ile başlayan satırlar yok sayılır. Çırak soruların yaklaşık üçte birini bunlardan sorar.
+  One question per line; lines starting with # are skipped. About one question in three comes from these.
+
+looks\\<ad-name>\\apprentice_working.png, apprentice_listening.png, apprentice_nodding.png, apprentice_asking.png
+  (+ isteğe bağlı/optional apprentice_toss.png)
+  48x48 karelerin yan yana dizildiği şeritler, Çırak'ın kendi çizimleriyle aynı düzen.
+  Yeni görünüm, Çırak'ı yeniden açınca menüde (Çırak) çıkar.
+  Strips of 48x48 frames side by side, the same layout as the built-in art.
+  A new look shows in the menu (Apprentice) after you restart Çırak.
+"""

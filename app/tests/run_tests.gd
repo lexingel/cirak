@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never", "test_jars", "test_mod_looks"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -203,3 +203,57 @@ func test_calm_and_never() -> void:
 	check(a.toss(), "tosses again once calm is off")
 	check(MainScript.LEVELS[0] == "off", "'never' is the first question level")
 	check(MainScript.ui("tr", "off") != "" and MainScript.ui("en", "calm") != "", "labels for never and calm")
+
+
+func test_jars() -> void:
+	check(Jars.fill(0) == [0, 0.0], "starts with an empty jar")
+	check(Jars.fill(600) == [1, 0.0], "ten minutes of talk fill the first jar")
+	check(Jars.fill(600 + 600) == [1, 0.5], "the second jar takes twenty")
+	var six := 0.0
+	for m in Jars.MINUTES:
+		six += m * 60.0
+	check(Jars.fill(six + 45 * 60) == [6, 0.5], "after the list every jar takes the last length")
+	var j = Jars.new()
+	root.add_child(j)
+	var got := [0]
+	j.filled.connect(func(): got[0] += 1)
+	j.add(599)
+	check(got[0] == 0, "not full yet")
+	j.add(2)
+	check(got[0] == 1 and j.seconds == 601, "full jar goes on the shelf once")
+	check(Jars.shown(8) == [2, 3, 4, 5, 6, 7], "the shelf shows the last six jars")
+	j.jar_at = Vector2(37, 220)
+	j.shelf_at = Vector2(204, 220)
+	var box: Rect2 = j.area()
+	check(box.has_point(Vector2(38, 219)) and box.has_point(Vector2(254, 220 - 2 * 27 + 1)), "the click region covers jar and shelf")
+	check(box.end.x <= 260 and box.position.y > 76, "jars fit in the window, beside the apprentice")
+
+
+func test_mod_looks() -> void:
+	var dir := ProjectSettings.globalize_path("user://modtest")
+	for look in ["blue", "broken"]:
+		DirAccess.make_dir_recursive_absolute(dir.path_join("looks").path_join(look))
+	for n in ["working", "listening", "nodding", "asking"]:
+		Apprentice.strip("", n).save_png(dir.path_join("looks/blue/apprentice_%s.png" % n))
+	Apprentice.strip("", "working").save_png(dir.path_join("looks/broken/apprentice_working.png"))
+	check(MainScript.mod_looks(dir) == ["mod/blue"], "only complete looks are listed")
+	Apprentice.mod_root = dir
+	var a = new_apprentice()
+	a.set_skin("mod/blue")
+	check(a.skin == "mod/blue" and a.sprite.sprite_frames.get_frame_count("working") >= 2, "a mod look loads from disk")
+	check(not a.toss(), "no toss strip: no toss, never an empty sprite")
+	check(Apprentice.preview("mod/blue") != null, "a mod look has a menu icon")
+	Apprentice.mod_root = ""
+	var fresh := ProjectSettings.globalize_path("user://modtest_fresh")
+	check(MainScript.open_mods(fresh) == fresh and FileAccess.file_exists(fresh.path_join("README.txt")) and DirAccess.dir_exists_absolute(fresh.path_join("questions/tr")), "the mod folder is made with a how-to")
+	check(MainScript.mod_looks(fresh) == [], "no looks yet, no error")
+	_rm_tree(dir)
+	_rm_tree(fresh)
+
+
+func _rm_tree(path: String) -> void:  # the test folders live in the real user data dir
+	for d in DirAccess.get_directories_at(path):
+		_rm_tree(path.path_join(d))
+	for f in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(f))
+	DirAccess.remove_absolute(path)

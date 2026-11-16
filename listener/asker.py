@@ -8,6 +8,7 @@ import os
 import random
 import re
 import urllib.request
+from pathlib import Path
 
 OLLAMA = "http://127.0.0.1:11434"
 LOCAL_URL = OLLAMA + "/api/chat"
@@ -189,8 +190,29 @@ def _clean(reply):
     return q if q.endswith("?") and len(q.split()) <= MAX_WORDS else None
 
 
+MOD_ROOT = None  # tests point this elsewhere; None = %LOCALAPPDATA%\Cirak
+
+
+def mod_questions(lang: str, root=None) -> list:
+    """The user's own questions: <mod folder>/questions/<lang>/*.txt, one per line, # comments. Read each time."""
+    if root is None:
+        from paths import DATA
+        root = MOD_ROOT or DATA
+    out = []
+    for f in sorted((Path(root) / "questions" / lang).glob("*.txt")):
+        try:
+            lines = f.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        out += [q.strip() for q in lines if q.strip() and not q.strip().startswith("#")]
+    return out
+
+
 def ask(context: str, lang: str = "en", client=None, local=ask_local, rng=random) -> str:
     lang = lang if lang in SYSTEM else "en"
+    mods = mod_questions(lang)
+    if mods and rng.random() < 1 / 3:  # about one question in three is the user's own
+        return rng.choice(mods)
     q = _clean(local(context, lang))
     if not q and (client is not None or os.environ.get("ANTHROPIC_API_KEY")):
         q = _clean(_haiku(context, lang, client))

@@ -124,3 +124,8 @@ Faz 4 kararlardan sonra.
   - Türkçe adımlar 1.5b/3b ile bazen tuhaf ("mutfağı toplamak" yemek tarifine döndü). Kullanıcı kararı: olduğu gibi gönder.
   - "Çırak, bitirdim / done for today" (K4 = evet, en küçük hali): günün anlatımından ilk, orta ve son cümle (en çok 10 kelime) alıntılanır, sonra silinir. Model yok, kayıt yok; RAM'de en çok 200 cümle.
   - Canlı denendi: özet balonu ve 5 adımlı balon ekran görüntüsünde.
+- **Faz 4 bitti (2026-11-16).**
+  - 4.1 (K1 kararı: kodla çizilen kavanoz rafı, yeni sanat yok): çırağın solunda küçük bir kavanoz konuşma süresiyle dolar (speech_start→bitiş, cümle başına en çok 60 s; yazılan satır 5 s). Kavanoz süreleri 10/20/30/45/60/90 dk, sonra hep 90. Dolan kavanoz sağdaki rafa (2x3, son 6) yeni renkte geçer, balonda "Bir kavanoz doldu, rafa koydum". Toplam saniye settings.cfg'de (prefs/talk); hiç azalmaz.
+  - Windows'ta tıklama bölgesi (mouse passthrough) çizimi de kırpıyor: kavanoz alanı bölgeye eklendi.
+  - 4.2 mod klasörü: %LOCALAPPDATA%\Cirak (listener'ınkiyle aynı). questions\<dil>\*.txt sorularının üçte biri onlardan; looks\<ad>\ en az working/listening/nodding/asking şeritleri ("mod/<ad>" olarak menüde, yeniden açınca). Menüde "Mod klasörü..." klasörü ve README.txt'yi oluşturup açar.
+  - Canlı denendi: 4 dolu kavanoz + yarım kavanoz ekran görüntüsünde (ayarlar yedeklenip geri yüklendi).
