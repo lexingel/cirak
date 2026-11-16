@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never", "test_jars", "test_mod_looks"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never", "test_jars", "test_mod_looks", "test_full_listen"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -257,3 +257,11 @@ func _rm_tree(path: String) -> void:  # the test folders live in the real user d
 	for f in DirAccess.get_files_at(path):
 		DirAccess.remove_absolute(path.path_join(f))
 	DirAccess.remove_absolute(path)
+
+
+func test_full_listen() -> void:
+	check(MainScript.wants_mic(true, true, true), "default: still listens while a game is fullscreen")
+	check(not MainScript.wants_mic(true, false, true), "option off: fullscreen stops the mic")
+	check(MainScript.wants_mic(true, false, false), "option off: listens again when the game leaves fullscreen")
+	check(not MainScript.wants_mic(false, true, false), "mic off stays off")
+	check(MainScript.ui("en", "full_listen") != "" and MainScript.ui("tr", "full_listen") != "", "labels for the option")

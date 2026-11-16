@@ -113,7 +113,7 @@ Faz 4 kararlardan sonra.
   - Tam ekranda gizlenme (`listener/screen.py`, 2 s'de bir), "Çırak, saklan / geri gel" + menüde "1 saat saklan".
   - Mikrofon noktası (yeşil/sarı/kırmızı), Claude cevabında "(Claude, internetten)", yardım ve README güncellendi.
   - Canlı denendi: tam ekran mesajı, saklan/geri gel, nokta ekran görüntüsünde.
-  - K2 kararı bekleniyor: gizliyken dinleme şimdilik sürüyor.
+  - K2 kararı: menüde "Oyun ya da video tam ekranken de dinle" seçeneği; varsayılan açık (dinler).
 - **Faz 2 bitti (2026-11-15).**
   - "Çırak, başlıyorum / let's start": 12 açılış sorusundan biri, son 3'ü tekrar etmez. Soru olarak gider, ardından düzenli soru hemen gelmez.
   - "Çırak, neredeydim / where was I": son 2 anlatım cümlesini aynen söyler. Plandan sapma: Ollama özeti yok, çünkü 1.5b modelin Türkçesi zayıf ve aynen alıntı uydurma yapmaz. Son 10 cümle yalnız RAM'de tutulur.

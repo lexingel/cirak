@@ -29,6 +29,7 @@ const HIDE_ID := 14
 const HIDE_SECONDS := 3600
 const CALM_ID := 15
 const MOD_ID := 16
+const FULL_LISTEN_ID := 17
 const LOOK_STRIPS := ["working", "listening", "nodding", "asking"]  ## a mod look needs these; toss is optional
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
@@ -58,6 +59,7 @@ const TEXT := {
 		"first_hint": "Right-click me for the microphone, language and what I can do",
 		"hide": "Hide for an hour (say \"Apprentice, come back\")",
 		"calm": "Calm apprentice (no tossing)", "mods": "Mod folder (own questions, looks)...",
+		"full_listen": "Listen while a game or video is fullscreen",
 		"jar": "A jar is full, it's on the shelf now"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"off": "Hiç (sadece dinle)", "low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
@@ -73,6 +75,7 @@ const TEXT := {
 		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla",
 		"hide": "1 saat saklan (\"Çırak, geri gel\" de)",
 		"calm": "Sakin çırak (malzeme atmaz)", "mods": "Mod klasörü (kendi soruların, görünümlerin)...",
+		"full_listen": "Oyun ya da video tam ekranken de dinle",
 		"jar": "Bir kavanoz doldu, rafa koydum"},
 }
 
@@ -82,6 +85,8 @@ var menu := PopupMenu.new()
 var freq_menu := PopupMenu.new()
 var cfg := ConfigFile.new()
 var mic_on := true
+var full_listen := true  ## menu: keep listening while a fullscreen app hides the apprentice
+var _mic_sent := true  ## what the listener was last told (mic_on, minus a fullscreen pause)
 var level := "mid"
 var lang := "en"
 var lang_menu := PopupMenu.new()
@@ -194,12 +199,15 @@ func _ready() -> void:
 	menu.add_item("", HIDE_ID)
 	menu.add_check_item("", CALM_ID)
 	menu.add_item("", MOD_ID)
+	menu.add_check_item("", FULL_LISTEN_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
 	add_child(menu)
 
 	mic_on = cfg.get_value("prefs", "mic", true)
+	full_listen = cfg.get_value("prefs", "full_listen", true)
+	_mic_sent = mic_on
 	level = cfg.get_value("prefs", "frequency", "mid")
 	lang = cfg.get_value("prefs", "lang", "en")
 	mic_device = cfg.get_value("prefs", "mic_device", "")
@@ -213,7 +221,7 @@ func _ready() -> void:
 	link.message.connect(_on_link_message)
 	link.connected.connect(func():
 		_set_paused(null)  # a fresh listener re-sends "paused" if a call is still on
-		link.send({"type": "mic", "on": mic_on})
+		link.send({"type": "mic", "on": _mic_sent})
 		link.send({"type": "frequency", "level": level})
 		link.send({"type": "lang", "lang": lang})
 		link.send({"type": "mic_device", "name": mic_device})
@@ -319,12 +327,17 @@ func _on_menu(id: int) -> void:
 	match id:
 		0:
 			mic_on = not mic_on
-			mic_changed.emit(mic_on)
+			_sync_mic()
 			_save()
 			_refresh_menu()
 		2:
 			_save()
 			get_tree().quit()
+		FULL_LISTEN_ID:
+			full_listen = not full_listen
+			_sync_mic()
+			_save()
+			_refresh_menu()
 		MOD_ID:
 			OS.shell_open(open_mods(Apprentice.mods()))
 		APPS_ID:
@@ -533,6 +546,8 @@ func _refresh_menu() -> void:
 	menu.set_item_text(menu.get_item_index(CALM_ID), ui(lang, "calm"))
 	menu.set_item_checked(menu.get_item_index(CALM_ID), apprentice.calm)
 	menu.set_item_text(menu.get_item_index(MOD_ID), ui(lang, "mods"))
+	menu.set_item_text(menu.get_item_index(FULL_LISTEN_ID), ui(lang, "full_listen"))
+	menu.set_item_checked(menu.get_item_index(FULL_LISTEN_ID), full_listen)
 	queue_redraw()  # the mic dot
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
@@ -542,6 +557,7 @@ func _refresh_menu() -> void:
 func _save() -> void:
 	cfg.set_value("win", "pos", get_window().position)
 	cfg.set_value("prefs", "mic", mic_on)
+	cfg.set_value("prefs", "full_listen", full_listen)
 	cfg.set_value("prefs", "frequency", level)
 	cfg.set_value("prefs", "lang", lang)
 	cfg.set_value("prefs", "mic_device", mic_device)
@@ -585,6 +601,7 @@ func _hide_for(seconds: int) -> void:
 
 func _update_visibility() -> void:
 	var win := get_window()
+	_sync_mic()
 	var hide := should_hide(full_rect, win.position, win.size, Time.get_ticks_msec(), hidden_until)
 	if hide == not visible:
 		return
@@ -592,6 +609,20 @@ func _update_visibility() -> void:
 	if hide and text_box.visible:
 		_close_text_box()
 	_update_passthrough()
+
+
+## Is the mic wanted? Off when the user turned it off, or a fullscreen app is in front and the user
+## chose not to be heard then ("Apprentice, hide" alone never stops listening).
+static func wants_mic(on: bool, listen_full: bool, fullscreen: bool) -> bool:
+	return on and (listen_full or not fullscreen)
+
+
+func _sync_mic() -> void:
+	var win := get_window()
+	var want := wants_mic(mic_on, full_listen, should_hide(full_rect, win.position, win.size, 0, 0))
+	if want != _mic_sent:
+		_mic_sent = want
+		mic_changed.emit(want)
 
 
 ## The small dot by the apprentice: "on" listening, "paused" (a call), "off" (mic off or blocked).
