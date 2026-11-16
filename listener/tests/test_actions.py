@@ -29,3 +29,12 @@ def test_breakdown_without_model_points_to_the_menu(monkeypatch):
     monkeypatch.setattr(main.asker, "breakdown", lambda t, lang: None)
     main.make_actions(lambda: False, lambda fn: fn())["breakdown"]("mutfak", "tr", said.append)
     assert "Soru modeli" in said[0]
+
+
+def test_worker_passes_none_through():
+    # Right Ctrl + another key cuts a command clip: ptt_end(None) must run and close "listening"
+    got = []
+    main.run_job(got.append, (None,))
+    main.run_job(lambda: got.append("no args"), ())
+    main.run_job(lambda: 1 / 0, ())  # logged, not raised: the worker thread keeps going
+    assert got == [None, "no args"]

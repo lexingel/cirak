@@ -151,6 +151,7 @@ class PushToTalk:
 
 
 _model = None
+_lock = __import__("threading").Lock()  # warm-up runs on its own thread now
 
 
 def _load(device: str):
@@ -172,6 +173,11 @@ def _run(audio, lang, hotwords=None):
 
 
 def transcribe(audio, lang: str = "en", hotwords=None) -> str:
+    with _lock:
+        return _transcribe(audio, lang, hotwords)
+
+
+def _transcribe(audio, lang, hotwords):
     global _model
     if _model is None:
         try:

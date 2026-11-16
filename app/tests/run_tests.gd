@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never", "test_jars", "test_mod_looks", "test_full_listen"]:
+	for t in ["test_states", "test_blank_typed_ignored", "test_clamp_to_screen", "test_parse", "test_restore_on_second_monitor", "test_click_polygon", "test_relaunch", "test_ui_text", "test_toss", "test_pause_text", "test_mic_label", "test_stuck_connect", "test_small_polish", "test_say", "test_command_menu", "test_skins", "test_step_aside", "test_calm_and_never", "test_jars", "test_mod_looks", "test_full_listen", "test_review_fixes"]:
 		call(t)
 	print("tests done, failures: ", failures)
 	quit(1 if failures else 0)
@@ -265,3 +265,32 @@ func test_full_listen() -> void:
 	check(MainScript.wants_mic(true, false, false), "option off: listens again when the game leaves fullscreen")
 	check(not MainScript.wants_mic(false, true, false), "mic off stays off")
 	check(MainScript.ui("en", "full_listen") != "" and MainScript.ui("tr", "full_listen") != "", "labels for the option")
+
+
+func test_review_fixes() -> void:
+	check(MainScript.mic_state(true, null, false, false) == "none", "no listener -> grey dot, not a green lie")
+	check(MainScript.mic_state(true, null, false, true, true) == "off", "no mic found -> off")
+	check(MainScript.mic_state(true, null, false) == "on", "listener up, mic there -> on")
+	check(MainScript.can_hide("on") and not MainScript.can_hide("off") and not MainScript.can_hide("paused") and not MainScript.can_hide("none"),
+		"hide only while it can hear \"come back\"")
+	for k in ["settings", "no_listener", "no_mic", "hide_no"]:
+		check(MainScript.ui("en", k) != "" and MainScript.ui("tr", k) != "", "label " + k)
+	var a = new_apprentice()
+	a.handle({"type": "question", "text": "Which part first?"})
+	a.handle({"type": "say", "text": "A jar is full"})
+	check(a.bubble.text() == "Which part first?", "a note waits while a question is up")
+	a.bubble.close()
+	check(a.bubble.visible and a.bubble.text() == "A jar is full", "and shows once the question is gone")
+	a.handle({"type": "say", "text": "Next song"})
+	check(a.bubble.text() == "Next song", "a note replaces a note")
+	a.handle({"type": "question", "text": "And now?"})
+	a.handle({"type": "say", "text": "Claude says hi"})
+	a.bubble.close(true)
+	check(not a.bubble.visible, "typing hides the bubble and keeps the note")
+	a.bubble.flush()
+	check(a.bubble.text() == "Claude says hi", "the kept note shows after typing")
+	a.bubble.close()
+	a.handle({"type": "question", "text": "What now?"})
+	a.handle({"type": "speech_start"})
+	a.handle({"type": "say", "text": "Next song"})
+	check(a.bubble.text() == "Next song", "once the user speaks, the reply to it replaces the question")

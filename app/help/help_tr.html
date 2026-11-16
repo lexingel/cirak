@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Çırak neler yapabilir?</title>
 <style>
   :root { --bg: #f6f0e4; --ink: #2e2a24; --muted: #6e665a; --accent: #8a4a1c; --card: #fffaf0; --line: #e2d6bf; --on: #2e7d32; --pause: #8a6100; --off: #b03a2e; }
@@ -21,6 +22,9 @@
   .on { color: var(--on); } .pause { color: var(--pause); } .off { color: var(--off); }
   .say { font-style: italic; }
   .small { color: var(--muted); font-size: 14px; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .dot { display: inline-block; width: 1.1em; text-align: center; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -52,18 +56,30 @@
 
   <h2>Sağ tık menüsü</h2>
   <div class="card"><ul>
-    <li><b>Mikrofon</b> aç/kapat ve hangi mikrofonun kullanılacağı</li>
-    <li><b>Soru sıklığı</b> ("Hiç" seçersen sadece dinler, hiç soru sormaz), <b>Sakin çırak</b> (yavaş karıştırır, malzeme atmaz) ve <b>Dil</b> (Türkçe / English)</li>
-    <li><b>Çırak:</b> görünüm seç (Büyücü, Demirci, Şifacı, Katip, Okçu, Aşçı)</li>
-    <li><b>Soru modeli:</b> daha iyi sorular için Ollama modeli; boyutu ve farkı yanında yazar</li>
-    <li><b>Komut tuşu</b> ve <b>Açabileceğim uygulamalar</b></li>
-    <li><b>Mod klasörü:</b> kendi sorularını (<code>questions\tr\*.txt</code>, her satıra bir soru) ve kendi görünümlerini (<code>looks\&lt;ad&gt;\</code>) ekleyebilirsin. Klasördeki README.txt nasıl yapılacağını anlatır.</li>
+    <li><b>Neler yapabilirsin?</b> bu sayfayı açar</li>
+    <li><b>Mikrofonu kapat / aç</b>, <b>1 saat saklan</b> (yalnızca seni duyabiliyorken: geri dönüş yolu "Çırak, geri gel")</li>
+    <li><b>Soru sıklığı</b> ("Hiç" seçersen sadece dinler, hiç soru sormaz) ve <b>Dil</b> (Türkçe / English)</li>
+    <li><b>Ayarlar:</b>
+      <ul>
+        <li><b>Mikrofon:</b> hangi mikrofonun kullanılacağı</li>
+        <li><b>Çırak:</b> görünüm seç (Büyücü, Demirci, Şifacı, Katip, Okçu, Aşçı)</li>
+        <li><b>Soru modeli:</b> daha iyi sorular için Ollama modeli; boyutu ve farkı yanında yazar</li>
+        <li><b>Açabileceğim uygulamalar</b> ve <b>Komut tuşu</b></li>
+        <li><b>Sakin çırak</b> (başta açık): yavaş karıştırır, kendiliğinden malzeme atmaz. Daha hareketli bir çırak için işareti kaldır.</li>
+        <li><b>Tam ekranda da dinle</b> (başta açık): oyun ya da video çırağı gizlerken dinlemeye devam eder. İşareti kaldırırsan oyun tam ekrandan çıkana kadar mikrofon kapalı kalır.</li>
+        <li><b>Mod klasörü:</b> kendi sorularını (<code>questions\tr\*.txt</code>, her satıra bir soru) ve kendi görünümlerini (<code>looks\&lt;ad&gt;\</code>) ekleyebilirsin. Klasördeki README.txt nasıl yapılacağını anlatır.</li>
+      </ul></li>
   </ul>
-  <p class="small">Sürükleyerek çırağı ekranda istediğin yere taşıyabilirsin. Görüntülü görüşmedeyken kendiliğinden susar, tam ekran oyun ya da video açılınca o ekrandan çekilir (o sırada dinlemeye devam eder; menüde "Oyun ya da video tam ekranken de dinle" işaretini kaldırırsan durur). Yanındaki küçük nokta mikrofonu gösterir: <b class="on">yeşil</b> dinliyor, <b class="pause">sarı</b> görüşme yüzünden duraklatıldı, <b class="off">kırmızı</b> kapalı.</p>
+  <p class="small">Sürükleyerek çırağı ekranda istediğin yere taşıyabilirsin. Görüntülü görüşmedeyken kendiliğinden susar, tam ekran oyun ya da video açılınca o ekrandan çekilir ("Tam ekranda da dinle" ayarına bak).</p>
+  <p class="small">Kazanın yanındaki küçük nokta mikrofonu rengiyle ve şekliyle gösterir:<br>
+    <span class="dot on">●</span> <b class="on">yeşil, ortası nokta:</b> dinliyor &nbsp;
+    <span class="dot pause">❚❚</span> <b class="pause">sarı, iki çizgi:</b> görüşme yüzünden duraklatıldı &nbsp;
+    <span class="dot off">✕</span> <b class="off">kırmızı, X:</b> kapalı ya da mikrofon yok &nbsp;
+    <span class="dot">–</span> <b>gri, tire:</b> dinleyici çalışmıyor (menünün en üst satırı da söyler).</p>
   <p class="small">Konuştukça çırağın solundaki küçük kavanoz yavaşça dolar. Dolunca sağdaki rafa geçer ve yeni renkte bir kavanoz başlar. Hiç boşalmaz, sayı ya da seri yoktur; ara verdiğin günler bir şey kaybettirmez.</p></div>
 
   <h2>Gizlilik</h2>
-  <div class="card"><p style="margin:0">Söylediklerin bu bilgisayarda yazıya çevrilir ve hiçbir yere gönderilmez. Bilgisayardan çıkan tek şeyler: "Claude'a sor" sonrası cümle (kendi Claude girişinle), "Claude'a iş ver" görevi (sen Enter'a basınca) ve ilk açılıştaki model indirmeleri.</p></div>
+  <div class="card"><p style="margin:0">Söylediklerin bu bilgisayarda yazıya çevrilir ve hiçbir yere gönderilmez. Bilgisayardan çıkan tek şeyler: "Claude'a sor" sonrası cümle (kendi Claude girişinle), "Claude'a iş ver" görevi (sen Enter'a basınca) ve ilk açılıştaki model indirmeleri. Claude'un son cevabının tamamı <code>%LOCALAPPDATA%\Cirak\last_answer.txt</code> dosyasında durur, uzun bir cevabı oradan okuyabilirsin.</p></div>
 
   <p class="small" style="margin-top:28px">Çırak açık kaynaklıdır: kod MIT, çizimler CC BY 4.0.</p>
 </main>

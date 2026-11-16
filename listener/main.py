@@ -91,6 +91,14 @@ def make_actions(speaker_busy, spawn, send=lambda m: None):
             "hide": do_hide, "show": do_show, "breakdown": do_breakdown}
 
 
+def run_job(fn, args) -> None:
+    """One worker job. args is a tuple, so None (a cancelled command clip) is passed on, not dropped."""
+    try:
+        fn(*args)
+    except Exception as e:
+        print("listener:", e, file=sys.stderr)
+
+
 def open_hearing(make):
     """The mic, or None if there is none (unplugged, no device): typing still works, no crash loop."""
     try:
@@ -123,16 +131,15 @@ async def run():
     # Transcribing and asking are slow; one worker thread keeps them off the audio callback.
     def worker():
         while True:
-            fn, arg = work.get()
-            try:
-                fn(arg) if arg is not None else fn()
-            except Exception as e:
-                print("listener:", e, file=sys.stderr)
+            run_job(*work.get())
 
     threading.Thread(target=worker, daemon=True).start()
-    work.put((apps.index, None))  # PowerShell, up to 20 s: now, not when the first "open" waits on it
+    def bg(fn):  # slow start-up jobs: never ahead of what the user types or says
+        threading.Thread(target=fn, daemon=True).start()
+
+    bg(apps.index)  # PowerShell, up to 20 s: now, not when the first "open" waits on it
     # state: None until Ollama was tried; mic: None until the privacy switches were read
-    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None, "full": None}
+    warm = {"state": None, "at": 0, "whisper": False, "pulling": False, "mic": None, "full": None, "no_mic": False}
 
     def brain_msg():
         return {"type": "brain", "state": warm["state"], "model": asker.LOCAL_MODEL}
@@ -172,15 +179,15 @@ async def run():
         fresh = not any((DATA / "models").glob("models--Systran--faster-whisper-small/snapshots/*/model.bin"))
         core.warm(__import__("numpy").zeros(16000, "float32"), fresh)
 
-    work.put((warm_model, None))
-    work.put((check_mic, None))
+    bg(warm_model)
+    work.put((check_mic, ()))
 
     def make_hearing():
-        return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, None)),
-                                            on_end=lambda audio: work.put((core.speech_end, audio)),
+        return open_hearing(lambda: Hearing(on_start=lambda: work.put((core.speech_start, ())),
+                                            on_end=lambda audio: work.put((core.speech_end, (audio,))),
                                             device=core.device, ptt=lambda: keys.key_down(core.ptt_vk),
-                                            on_ptt_start=lambda: work.put((core.ptt_start, None)),
-                                            on_ptt_end=lambda audio: work.put((core.ptt_end, audio)),
+                                            on_ptt_start=lambda: work.put((core.ptt_start, ())),
+                                            on_ptt_end=lambda audio: work.put((core.ptt_end, (audio,))),
                                             chord=lambda: keys.other_key_down(core.ptt_vk)))
 
     def pick_key():
@@ -209,6 +216,9 @@ async def run():
         if warm["mic"] is not None:
             await ws.send(json.dumps({"type": "mic_blocked", "blocked": warm["mic"]}))
         await ws.send(json.dumps({"type": "fullscreen", "rect": warm["full"]}))
+        await ws.send(json.dumps({"type": "no_mic", "none": hearing is None}))
+        for m in core.hello():
+            await ws.send(json.dumps(m, ensure_ascii=False))
         try:
             async for raw in ws:
                 try:
@@ -218,7 +228,7 @@ async def run():
                 if isinstance(msg, dict) and msg.get("type") == "bye":  # the app is closing
                     quit_cleanly(hearing)
                 if isinstance(msg, dict) and msg.get("type") == "edit_apps":  # menu: "App list..."
-                    work.put((apps.edit, None))
+                    work.put((apps.edit, ()))
                     continue
                 if isinstance(msg, dict) and msg.get("type") == "pull_model":  # minutes: own thread
                     threading.Thread(target=pull_model, daemon=True).start()
@@ -229,10 +239,10 @@ async def run():
                 if isinstance(msg, dict) and msg.get("type") == "pick_ptt_key":  # menu: "Command key..."
                     threading.Thread(target=pick_key, daemon=True).start()  # waits up to 10 s for a key
                     continue
-                work.put((core.on_client, msg))
+                work.put((core.on_client, (msg,)))
                 if isinstance(msg, dict) and msg.get("type") == "lang" and not warm["whisper"]:
                     warm["whisper"] = True
-                    work.put((warm_whisper, None))
+                    bg(warm_whisper)  # first run downloads ~460 MB: typing works meanwhile
         except websockets.ConnectionClosed:
             pass  # the app closing without a goodbye is normal, not a log entry
         finally:
@@ -242,10 +252,10 @@ async def run():
         idle = 0
         while True:
             await asyncio.sleep(1)
-            work.put((core.tick, None))
+            work.put((core.tick, ()))
             warm["at"] += 1
             if warm["state"] not in (None, "ok") and not warm["pulling"] and warm["at"] % 60 == 0:  # Ollama installed later
-                work.put((warm_model, None))
+                bg(warm_model)
             if warm["at"] % 2 == 0:  # a game or video went fullscreen: the app steps aside on that monitor
                 try:
                     full = screen.fullscreen_rect()
@@ -256,7 +266,7 @@ async def run():
                     warm["full"] = full
                     send({"type": "fullscreen", "rect": full})
             if warm["at"] % 10 == 0:  # switched in Settings while running
-                work.put((check_mic, None))
+                work.put((check_mic, ()))
             want = core.listening
             if core.device != device:  # the user picked another mic in the menu
                 device = core.device
@@ -270,6 +280,12 @@ async def run():
                 except Exception as e:  # device vanished: carry on without the mic
                     print("listener: mic lost:", e, file=sys.stderr)
                     hearing = None
+            if hearing is None and warm["at"] % 30 == 0:  # plugged back in? try again now and then
+                # ponytail: PortAudio's device list is read once; a mic first plugged in after start needs an app restart
+                hearing, mic_running = make_hearing(), False
+            if (hearing is None) != warm["no_mic"]:
+                warm["no_mic"] = hearing is None
+                send({"type": "no_mic", "none": warm["no_mic"]})  # red dot + a menu line, not a silent green
             idle = 0 if clients else idle + 1
             if idle >= IDLE_EXIT:
                 quit_cleanly(hearing)

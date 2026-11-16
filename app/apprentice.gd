@@ -35,6 +35,7 @@ func _ready() -> void:
 	bubble.closed.connect(_on_bubble_closed)
 	add_child(bubble)
 	bubble.resized.connect(shape_changed.emit)  # click area follows the bubble's real size
+	bubble.visibility_changed.connect(shape_changed.emit)  # a waiting note showing up on its own
 	bubble.position = Vector2(-118, -FRAME * SCALE / 2.0 - 70)
 	_enter(State.WORKING)
 	toss_timer.timeout.connect(_on_toss_timer)
@@ -115,19 +116,20 @@ static func preview(s: String) -> Texture2D:
 func handle(msg: Dictionary) -> void:
 	match msg.get("type", ""):
 		"speech_start":
+			bubble.release()
 			if state != State.ASKING:
 				_enter(State.LISTENING)
 		"speech_end":
 			if state == State.LISTENING:
 				_enter(State.NODDING)
 		"question":
-			bubble.show_text(str(msg.get("text", "")))
+			bubble.show_text(str(msg.get("text", "")), true)
 			_enter(State.ASKING)
 			shape_changed.emit()
 		"paused":
 			_enter(State.WORKING)
 		"say":  # a command was done (or not): a short note and a nod, no question pose
-			bubble.show_text(str(msg.get("text", "")))
+			bubble.say(str(msg.get("text", "")))
 			_enter(State.NODDING)
 			shape_changed.emit()
 

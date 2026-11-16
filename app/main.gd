@@ -30,6 +30,8 @@ const HIDE_SECONDS := 3600
 const CALM_ID := 15
 const MOD_ID := 16
 const FULL_LISTEN_ID := 17
+const MORE_ID := 18
+const STATUS_ID := 19
 const LOOK_STRIPS := ["working", "listening", "nodding", "asking"]  ## a mod look needs these; toss is optional
 const MODELS := ["qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"]  ## the listener's asker.MODELS
 const MODEL_SIZE := ["1 GB", "2 GB", "4.7 GB"]
@@ -56,10 +58,13 @@ const TEXT := {
 		"mic_blocked": "Windows microphone permission is off: open Settings...",
 		"mic_blocked_say": "Windows' microphone permission is off, so I hear nothing. Right-click me to open Settings",
 		"after_ollama": "Install Ollama and start it; I'll notice within a minute",
-		"first_hint": "Right-click me for the microphone, language and what I can do",
-		"hide": "Hide for an hour (say \"Apprentice, come back\")",
-		"calm": "Calm apprentice (no tossing)", "mods": "Mod folder (own questions, looks)...",
-		"full_listen": "Listen while a game or video is fullscreen",
+		"first_hint": "Hi! Tell me what you're working on. Right-click me for help",
+		"hide": "Hide for an hour", "hide_bye": "Say \"Apprentice, come back\" when you want me",
+		"hide_no": "I can't hear you right now, so I couldn't come back. Turn the mic on first",
+		"settings": "Settings", "no_listener": "Not listening: the listener isn't running",
+		"no_mic": "No microphone found (typing still works)",
+		"calm": "Calm apprentice", "mods": "Mod folder...",
+		"full_listen": "Listen during fullscreen",
 		"jar": "A jar is full, it's on the shelf now"},
 	"tr": {"mic_off": "Mikrofonu kapat", "mic_on": "Mikrofonu aç", "frequency": "Soru sıklığı",
 		"off": "Hiç (sadece dinle)", "low": "Az", "mid": "Orta", "high": "Çok", "language": "Dil",
@@ -72,16 +77,20 @@ const TEXT := {
 		"mic_blocked": "Windows mikrofon izni kapalı: Ayarlar'ı aç...",
 		"mic_blocked_say": "Windows'un mikrofon izni kapalı, hiçbir şey duymuyorum. Ayarlar için bana sağ tıkla",
 		"after_ollama": "Ollama'yı kurup açınca bir dakika içinde fark ederim",
-		"first_hint": "Mikrofon, dil ve neler yapabildiğim için bana sağ tıkla",
-		"hide": "1 saat saklan (\"Çırak, geri gel\" de)",
-		"calm": "Sakin çırak (malzeme atmaz)", "mods": "Mod klasörü (kendi soruların, görünümlerin)...",
-		"full_listen": "Oyun ya da video tam ekranken de dinle",
+		"first_hint": "Merhaba! Ne üzerinde çalıştığını anlat. Yardım için bana sağ tıkla",
+		"hide": "1 saat saklan", "hide_bye": "Beni istediğinde \"Çırak, geri gel\" de",
+		"hide_no": "Şu an seni duyamıyorum, geri gelemezdim. Önce mikrofonu aç",
+		"settings": "Ayarlar", "no_listener": "Dinlemiyor: dinleyici çalışmıyor",
+		"no_mic": "Mikrofon bulunamadı (yazmak yine çalışır)",
+		"calm": "Sakin çırak", "mods": "Mod klasörü...",
+		"full_listen": "Tam ekranda da dinle",
 		"jar": "Bir kavanoz doldu, rafa koydum"},
 }
 
 var apprentice: Apprentice
 var text_box := LineEdit.new()
 var menu := PopupMenu.new()
+var more_menu := PopupMenu.new()  ## "Settings": everything not needed every day
 var freq_menu := PopupMenu.new()
 var cfg := ConfigFile.new()
 var mic_on := true
@@ -106,6 +115,8 @@ var model := ""  ## the question model the listener uses (it keeps the choice in
 var model_menu := PopupMenu.new()
 var _told_mic_blocked := false
 var mic_blocked := false
+var listener_up := false  ## the websocket is open
+var no_mic := false  ## the listener found no microphone
 var full_rect = null  ## [l, t, r, b] of a monitor a fullscreen app covers, or null
 var hidden_until := 0  ## Time.get_ticks_msec() until which the user asked it out of sight
 
@@ -148,7 +159,7 @@ func _ready() -> void:
 		skin = ""
 	apprentice = preload("res://apprentice.tscn").instantiate()
 	apprentice.skin = skin
-	apprentice.calm = cfg.get_value("prefs", "calm", false)
+	apprentice.calm = cfg.get_value("prefs", "calm", true)  # calm by default: no unasked motion
 	apprentice.position = Vector2(130, 220 - 72)
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
@@ -160,6 +171,18 @@ func _ready() -> void:
 	jars.filled.connect(func(): apprentice.handle({"type": "say", "text": ui(lang, "jar")}))
 	add_child(jars)
 
+	var tb := StyleBoxFlat.new()
+	tb.bg_color = Color("f6eedb")
+	tb.border_color = Color("2a2230")
+	tb.set_border_width_all(2)
+	tb.set_corner_radius_all(8)
+	tb.set_content_margin_all(6)
+	for k in ["normal", "focus"]:
+		text_box.add_theme_stylebox_override(k, tb)
+	text_box.add_theme_color_override("font_color", Color("2a2230"))
+	text_box.add_theme_color_override("font_placeholder_color", Color("2a2230", 0.5))
+	text_box.add_theme_color_override("caret_color", Color("2a2230"))
+	text_box.add_theme_font_size_override("font_size", 15)
 	text_box.position = Vector2(10, 30)
 	text_box.size = Vector2(240, 30)
 	text_box.visible = false
@@ -176,30 +199,34 @@ func _ready() -> void:
 	menu.add_child(freq_menu)
 	menu.add_child(lang_menu)
 	mic_menu.id_pressed.connect(func(id): _set_mic_device(_mic_names()[id]))
-	menu.add_child(mic_menu)
-	menu.add_item("", 0)
-	menu.add_submenu_node_item("", freq_menu, 1)
-	menu.add_submenu_node_item("", lang_menu, 3)
-	menu.add_submenu_node_item("", mic_menu, MIC_ID)
+	more_menu.add_child(mic_menu)
 	for i in skins.size():
 		skin_menu.add_radio_check_item("", i)
 		skin_menu.set_item_icon(i, Apprentice.preview(skins[i]))
 		skin_menu.set_item_icon_max_width(i, 32)
 	skin_menu.id_pressed.connect(func(id): _set_skin(skins[id]))
-	menu.add_child(skin_menu)
-	menu.add_submenu_node_item("", skin_menu, SKIN_ID)
+	more_menu.add_child(skin_menu)
 	for i in MODELS.size():
 		model_menu.add_radio_check_item("", i)
 	model_menu.id_pressed.connect(func(id): model_picked.emit(MODELS[id]))  # the listener answers with "brain"
-	menu.add_child(model_menu)
-	menu.add_submenu_node_item("", model_menu, MODEL_ID)
-	menu.add_item("", APPS_ID)
-	menu.add_item("", PTT_ID)
+	more_menu.add_child(model_menu)
+	# the everyday few on top, the rest one level down: a short menu for a first look
+	more_menu.add_submenu_node_item("", mic_menu, MIC_ID)
+	more_menu.add_submenu_node_item("", skin_menu, SKIN_ID)
+	more_menu.add_submenu_node_item("", model_menu, MODEL_ID)
+	more_menu.add_item("", APPS_ID)
+	more_menu.add_item("", PTT_ID)
+	more_menu.add_check_item("", CALM_ID)
+	more_menu.add_check_item("", FULL_LISTEN_ID)
+	more_menu.add_item("", MOD_ID)
+	more_menu.id_pressed.connect(_on_menu)
+	menu.add_child(more_menu)
 	menu.add_item("", HELP_ID)
+	menu.add_item("", 0)
 	menu.add_item("", HIDE_ID)
-	menu.add_check_item("", CALM_ID)
-	menu.add_item("", MOD_ID)
-	menu.add_check_item("", FULL_LISTEN_ID)
+	menu.add_submenu_node_item("", freq_menu, 1)
+	menu.add_submenu_node_item("", lang_menu, 3)
+	menu.add_submenu_node_item("", more_menu, MORE_ID)
 	menu.add_separator()
 	menu.add_item("", 2)
 	menu.id_pressed.connect(_on_menu)
@@ -219,8 +246,13 @@ func _ready() -> void:
 	add_child(link)
 	link.message.connect(apprentice.handle)
 	link.message.connect(_on_link_message)
+	link.disconnected.connect(func():
+		listener_up = false
+		_refresh_status())
 	link.connected.connect(func():
-		_set_paused(null)  # a fresh listener re-sends "paused" if a call is still on
+		listener_up = true
+		_refresh_status()
+		_set_paused(null)  # the listener re-sends "paused" if a call is still on
 		link.send({"type": "mic", "on": _mic_sent})
 		link.send({"type": "frequency", "level": level})
 		link.send({"type": "lang", "lang": lang})
@@ -299,7 +331,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _open_text_box() -> void:
-	apprentice.bubble.close()  # typing comes first; the question can wait
+	apprentice.bubble.close(true)  # typing comes first; a waiting note shows after
 	text_box.visible = true
 	text_box.grab_focus()
 	_update_passthrough()
@@ -309,9 +341,14 @@ func _close_text_box() -> void:
 	text_box.text = ""
 	text_box.visible = false
 	_update_passthrough()
+	apprentice.bubble.flush()
 
 
 func _on_text_submitted(t: String) -> void:
+	if not listener_up and not t.strip_edges().is_empty():  # no nod for words nobody gets
+		_close_text_box()
+		apprentice.handle({"type": "say", "text": ui(lang, "no_listener")})
+		return
 	if apprentice.on_typed(t):
 		jars.add(5)  # a typed line counts like a few seconds of talk
 		typed.emit(t)
@@ -354,7 +391,7 @@ func _on_menu(id: int) -> void:
 			_save()
 			_refresh_menu()
 		HIDE_ID:
-			_hide_for(HIDE_SECONDS)
+			_ask_hide(HIDE_SECONDS)
 		MICPERM_ID:
 			OS.shell_open("ms-settings:privacy-microphone")  # the user turns it on; we never change it
 		BRAIN_ID:
@@ -387,12 +424,15 @@ func _on_link_message(msg: Dictionary) -> void:
 			full_rect = msg.get("rect")
 			_update_visibility()
 		"hide":
-			_hide_for(int(msg.get("seconds", HIDE_SECONDS)))
+			_ask_hide(int(msg.get("seconds", HIDE_SECONDS)))
 		"show":
 			hidden_until = 0
 			_update_visibility()
 		"mic_blocked":
 			_set_mic_blocked(bool(msg.get("blocked", false)))
+		"no_mic":
+			no_mic = bool(msg.get("none", false))
+			_refresh_status()
 		"ptt_key":
 			ptt_vk = int(msg.get("vk", 0xA3))  # JSON numbers arrive as floats
 			ptt_name = str(msg.get("name", ""))
@@ -520,14 +560,14 @@ func _refresh_menu() -> void:
 		freq_menu.set_item_checked(i, LEVELS[i] == level)
 	for i in LANGS.size():
 		lang_menu.set_item_checked(i, LANGS[i] == lang)
-	menu.set_item_text(menu.get_item_index(MIC_ID), ui(lang, "microphone"))
-	menu.set_item_text(menu.get_item_index(APPS_ID), ui(lang, "apps"))
-	menu.set_item_text(menu.get_item_index(SKIN_ID), ui(lang, "skin"))
+	more_menu.set_item_text(more_menu.get_item_index(MIC_ID), ui(lang, "microphone"))
+	more_menu.set_item_text(more_menu.get_item_index(APPS_ID), ui(lang, "apps"))
+	more_menu.set_item_text(more_menu.get_item_index(SKIN_ID), ui(lang, "skin"))
 	for i in skins.size():
 		var names: Array = SKIN_NAMES.get(lang, SKIN_NAMES["en"])
 		skin_menu.set_item_text(i, names[i] if i < names.size() else str(skins[i]).trim_prefix("mod/"))
 		skin_menu.set_item_checked(i, skins[i] == skin)
-	menu.set_item_text(menu.get_item_index(PTT_ID), ptt_label(lang, ptt_name))
+	more_menu.set_item_text(more_menu.get_item_index(PTT_ID), ptt_label(lang, ptt_name))
 	mic_menu.clear()
 	var names := _mic_names()
 	for i in names.size():
@@ -540,14 +580,17 @@ func _refresh_menu() -> void:
 		menu.set_item_text(menu.get_item_index(BRAIN_ID), brain_text(lang, brain, model))
 	if menu.get_item_index(MICPERM_ID) >= 0:
 		menu.set_item_text(menu.get_item_index(MICPERM_ID), ui(lang, "mic_blocked"))
-	menu.set_item_text(menu.get_item_index(MODEL_ID), ui(lang, "model"))
+	more_menu.set_item_text(more_menu.get_item_index(MODEL_ID), ui(lang, "model"))
 	menu.set_item_text(menu.get_item_index(HELP_ID), ui(lang, "help"))
 	menu.set_item_text(menu.get_item_index(HIDE_ID), ui(lang, "hide"))
-	menu.set_item_text(menu.get_item_index(CALM_ID), ui(lang, "calm"))
-	menu.set_item_checked(menu.get_item_index(CALM_ID), apprentice.calm)
-	menu.set_item_text(menu.get_item_index(MOD_ID), ui(lang, "mods"))
-	menu.set_item_text(menu.get_item_index(FULL_LISTEN_ID), ui(lang, "full_listen"))
-	menu.set_item_checked(menu.get_item_index(FULL_LISTEN_ID), full_listen)
+	more_menu.set_item_text(more_menu.get_item_index(CALM_ID), ui(lang, "calm"))
+	more_menu.set_item_checked(more_menu.get_item_index(CALM_ID), apprentice.calm)
+	more_menu.set_item_text(more_menu.get_item_index(MOD_ID), ui(lang, "mods"))
+	menu.set_item_text(menu.get_item_index(MORE_ID), ui(lang, "settings"))
+	if menu.get_item_index(STATUS_ID) >= 0:
+		menu.set_item_text(menu.get_item_index(STATUS_ID), status_text(lang, listener_up, no_mic))
+	more_menu.set_item_text(more_menu.get_item_index(FULL_LISTEN_ID), ui(lang, "full_listen"))
+	more_menu.set_item_checked(more_menu.get_item_index(FULL_LISTEN_ID), full_listen)
 	queue_redraw()  # the mic dot
 	for i in MODELS.size():
 		model_menu.set_item_text(i, model_label(lang, i))
@@ -625,25 +668,74 @@ func _sync_mic() -> void:
 		mic_changed.emit(want)
 
 
+func _mic_state() -> String:
+	return mic_state(mic_on, paused_by, mic_blocked, listener_up, no_mic)
+
+
+## "Hide for an hour" only while it can hear "come back": hidden, nothing on screen takes a click.
+static func can_hide(state: String) -> bool:
+	return state == "on"
+
+
+func _ask_hide(seconds: int) -> void:
+	if not can_hide(_mic_state()):
+		apprentice.handle({"type": "say", "text": ui(lang, "hide_no")})
+		return
+	apprentice.bubble.show_text(ui(lang, "hide_bye"))  # the user just asked: replace any question
+	get_tree().create_timer(3.0).timeout.connect(_hide_for.bind(seconds))  # time to read how to call it back
+
+
+## Greyed-out top line when it can't hear at all; "" when all is well.
+static func status_text(l: String, up: bool, none: bool) -> String:
+	return ui(l, "no_listener") if not up else (ui(l, "no_mic") if none else "")
+
+
+func _refresh_status() -> void:
+	queue_redraw()
+	var t := status_text(lang, listener_up, no_mic)
+	var idx := menu.get_item_index(STATUS_ID)
+	if t.is_empty():
+		if idx >= 0:
+			menu.remove_item(idx)
+		return
+	if idx < 0:
+		menu.add_item("", STATUS_ID)
+		idx = menu.get_item_index(STATUS_ID)
+		menu.set_item_disabled(idx, true)
+		menu.set_item_index(idx, 0)
+	menu.set_item_text(menu.get_item_index(STATUS_ID), t)
+
+
 ## The small dot by the apprentice: "on" listening, "paused" (a call), "off" (mic off or blocked).
-static func mic_state(on: bool, paused, blocked: bool) -> String:
-	if not on or blocked:
+static func mic_state(on: bool, paused, blocked: bool, up := true, none := false) -> String:
+	if not up:
+		return "none"
+	if not on or blocked or none:
 		return "off"
 	return "on" if paused == null else "paused"
 
 
-const MIC_COLORS := {"on": Color("4caf50"), "paused": Color("d9a441"), "off": Color("c0392b")}
+const MIC_COLORS := {"on": Color("4caf50"), "paused": Color("d9a441"), "off": Color("c0392b"), "none": Color("8a8a8a")}
 
 
 func _draw() -> void:
 	var r := apprentice.sprite_rect()
 	var p := Vector2(r.end.x - 26, r.end.y - 16)  # just right of the cauldron
-	var st := mic_state(mic_on, paused_by, mic_blocked)
-	draw_circle(p, 5.0, Color("2a2230"))
-	draw_circle(p, 3.5, MIC_COLORS[st])
-	if st == "off":
-		draw_line(p + Vector2(-2, -2), p + Vector2(2, 2), Color.WHITE, 1.0)
-		draw_line(p + Vector2(2, -2), p + Vector2(-2, 2), Color.WHITE, 1.0)
+	var st := _mic_state()
+	draw_circle(p, 7.0, Color("2a2230"))
+	draw_circle(p, 5.5, MIC_COLORS[st])
+	# a shape per state, not only a colour: dot = listening, bars = paused, X = off, dash = not running
+	match st:
+		"on":
+			draw_circle(p, 2.0, Color.WHITE)
+		"paused":
+			draw_rect(Rect2(p + Vector2(-2.5, -3), Vector2(1.5, 6)), Color.WHITE)
+			draw_rect(Rect2(p + Vector2(1, -3), Vector2(1.5, 6)), Color.WHITE)
+		"off":
+			draw_line(p + Vector2(-2.5, -2.5), p + Vector2(2.5, 2.5), Color.WHITE, 1.5)
+			draw_line(p + Vector2(2.5, -2.5), p + Vector2(-2.5, 2.5), Color.WHITE, 1.5)
+		"none":
+			draw_line(p + Vector2(-3, 0), p + Vector2(3, 0), Color.WHITE, 1.5)
 
 
 ## Talking time fills the jar: from speech_start to the end of that sentence, at most a minute each.

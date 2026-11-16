@@ -5,10 +5,11 @@ from ctypes import wintypes
 SHELL = {"Progman", "WorkerW", "Shell_TrayWnd"}  # the desktop itself is "fullscreen" but isn't an app
 
 
-def is_fullscreen(win: tuple, mon: tuple, cls: str) -> bool:
-    """win/mon = (left, top, right, bottom). A window covering its whole monitor, taskbar included
-    (so not merely maximized), that isn't the desktop."""
-    if cls in SHELL:
+def is_fullscreen(win: tuple, mon: tuple, cls: str, zoomed: bool = False) -> bool:
+    """win/mon = (left, top, right, bottom). A window covering its whole monitor, taskbar included,
+    that isn't the desktop. Maximized (zoomed) never counts: on a monitor without a taskbar a
+    maximized browser covers it all too."""
+    if zoomed or cls in SHELL:
         return False
     return win[0] <= mon[0] and win[1] <= mon[1] and win[2] >= mon[2] and win[3] >= mon[3]
 
@@ -40,4 +41,4 @@ def fullscreen_rect():
     _u32.GetClassNameW(hwnd, buf, 64)
     m = mi.rcMonitor
     mon = (m.left, m.top, m.right, m.bottom)
-    return list(mon) if is_fullscreen((r.left, r.top, r.right, r.bottom), mon, buf.value) else None
+    return list(mon) if is_fullscreen((r.left, r.top, r.right, r.bottom), mon, buf.value, bool(_u32.IsZoomed(hwnd))) else None

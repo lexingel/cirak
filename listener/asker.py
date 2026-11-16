@@ -1,7 +1,7 @@
 """Turns recent narration into one short, curious question.
 
-Order: local model (Ollama, free, nothing leaves the PC) -> Claude Haiku (only if ANTHROPIC_API_KEY
-is set) -> a local list of gentle questions.
+Order: local model (Ollama, free, nothing leaves the PC) -> a local list of gentle questions.
+Narration never goes online: only "ask/tell Claude" do (assistants.py), and only on purpose.
 """
 import json
 import os
@@ -42,7 +42,6 @@ def set_model(name: str, f=None) -> bool:
     f.write_text(name + "\n", encoding="utf-8")
     LOCAL_MODEL = name
     return True
-HAIKU = "claude-haiku-5-5"
 MAX_WORDS = 15
 KEEP_ALIVE = "2h"  # ponytail: holds ~1 GB (V)RAM while idle; after 2h silence the first question uses the list
 
@@ -166,19 +165,6 @@ def pull(progress) -> bool:
     return False
 
 
-def _haiku(context: str, lang: str, client):
-    try:
-        if client is None:
-            import anthropic
-            client = anthropic.Anthropic(max_retries=0)
-        r = client.messages.create(model=HAIKU, max_tokens=60, timeout=8, system=SYSTEM[lang],
-                                   thinking={"type": "disabled"},  # a 15-word question needs no thinking
-                                   messages=[{"role": "user", "content": context}])
-        return r.content[0].text
-    except Exception:
-        return None
-
-
 def _clean(reply):
     """First line, without quotes or a 'Question:' label; None if empty or too long."""
     if not reply:
@@ -208,14 +194,12 @@ def mod_questions(lang: str, root=None) -> list:
     return out
 
 
-def ask(context: str, lang: str = "en", client=None, local=ask_local, rng=random) -> str:
+def ask(context: str, lang: str = "en", local=ask_local, rng=random) -> str:
     lang = lang if lang in SYSTEM else "en"
     mods = mod_questions(lang)
     if mods and rng.random() < 1 / 3:  # about one question in three is the user's own
         return rng.choice(mods)
     q = _clean(local(context, lang))
-    if not q and (client is not None or os.environ.get("ANTHROPIC_API_KEY")):
-        q = _clean(_haiku(context, lang, client))
     return q or rng.choice(FALLBACK[lang])
 
 

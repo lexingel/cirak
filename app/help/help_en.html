@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>What can Çırak do?</title>
 <style>
   :root { --bg: #f6f0e4; --ink: #2e2a24; --muted: #6e665a; --accent: #8a4a1c; --card: #fffaf0; --line: #e2d6bf; --on: #2e7d32; --pause: #8a6100; --off: #b03a2e; }
@@ -21,6 +22,9 @@
   .on { color: var(--on); } .pause { color: var(--pause); } .off { color: var(--off); }
   .say { font-style: italic; }
   .small { color: var(--muted); font-size: 14px; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .dot { display: inline-block; width: 1.1em; text-align: center; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -52,18 +56,30 @@
 
   <h2>Right-click menu</h2>
   <div class="card"><ul>
-    <li><b>Microphone</b> on/off and which mic to use</li>
-    <li><b>Question frequency</b> ("Never" just listens and asks nothing), <b>Calm apprentice</b> (stirs slowly, no tossing), and <b>Language</b> (English / Türkçe)</li>
-    <li><b>Apprentice:</b> pick a look (Wizard, Blacksmith, Healer, Scribe, Archer, Cook)</li>
-    <li><b>Question model:</b> an Ollama model for better questions, with its size and trade-off next to it</li>
-    <li><b>Mod folder:</b> add your own questions (<code>questions\en\*.txt</code>, one per line) and your own looks (<code>looks\&lt;name&gt;\</code>). The README.txt in the folder explains how.</li>
-    <li><b>Command key</b> and <b>Apps I may open</b></li>
+    <li><b>What can you do?</b> opens this page</li>
+    <li><b>Turn mic off / on</b>, <b>Hide for an hour</b> (only while it can hear you: "Apprentice, come back" is the way back)</li>
+    <li><b>Question frequency</b> ("Never" just listens and asks nothing) and <b>Language</b> (English / Türkçe)</li>
+    <li><b>Settings:</b>
+      <ul>
+        <li><b>Microphone:</b> which mic to use</li>
+        <li><b>Apprentice:</b> pick a look (Wizard, Blacksmith, Healer, Scribe, Archer, Cook)</li>
+        <li><b>Question model:</b> an Ollama model for better questions, with its size and trade-off next to it</li>
+        <li><b>Apps I may open</b> and <b>Command key</b></li>
+        <li><b>Calm apprentice</b> (on at first): stirs slowly and never throws in ingredients by itself. Untick it for a livelier apprentice.</li>
+        <li><b>Listen during fullscreen</b> (on at first): keeps listening while a game or video hides the apprentice. Untick it and the mic is off until the game leaves fullscreen.</li>
+        <li><b>Mod folder:</b> add your own questions (<code>questions\en\*.txt</code>, one per line) and your own looks (<code>looks\&lt;name&gt;\</code>). The README.txt in the folder explains how.</li>
+      </ul></li>
   </ul>
-  <p class="small">Drag the apprentice anywhere on the screen. It goes quiet by itself while you're in a call and steps aside when a game or video goes fullscreen on its screen (it keeps listening then; untick "Listen while a game or video is fullscreen" in the menu to stop that). The small dot shows the mic: <b class="on">green</b> listening, <b class="pause">yellow</b> paused for a call, <b class="off">red</b> off.</p>
+  <p class="small">Drag the apprentice anywhere on the screen. It goes quiet by itself while you're in a call and steps aside when a game or video goes fullscreen on its screen (see "Listen during fullscreen").</p>
+  <p class="small">The small dot by the cauldron shows the mic, by colour and by shape:<br>
+    <span class="dot on">●</span> <b class="on">green with a dot:</b> listening &nbsp;
+    <span class="dot pause">❚❚</span> <b class="pause">yellow with bars:</b> paused for a call &nbsp;
+    <span class="dot off">✕</span> <b class="off">red with an X:</b> off or no mic &nbsp;
+    <span class="dot">–</span> <b>grey with a dash:</b> the listener isn't running (the top menu line says so).</p>
   <p class="small">As you talk, the little jar left of the apprentice slowly fills. When it's full it moves to the shelf on the right and a new colour starts. It never empties, with no numbers or streaks; days off cost nothing.</p></div>
 
   <h2>Privacy</h2>
-  <div class="card"><p style="margin:0">What you say is turned into text on this PC and sent nowhere. The only things that leave it: the sentence after "ask Claude" (through your own Claude login), a "tell Claude" task (when you press Enter), and the model downloads on first use.</p></div>
+  <div class="card"><p style="margin:0">What you say is turned into text on this PC and sent nowhere. The only things that leave it: the sentence after "ask Claude" (through your own Claude login), a "tell Claude" task (when you press Enter), and the model downloads on first use. Claude's last full answer is kept in <code>%LOCALAPPDATA%\Cirak\last_answer.txt</code>, so a long one can be read in full.</p></div>
 
   <p class="small" style="margin-top:28px">Çırak is open source: code MIT, drawings CC BY 4.0.</p>
 </main>

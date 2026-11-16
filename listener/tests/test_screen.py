@@ -21,3 +21,7 @@ def test_the_desktop_is_not_an_app():
 
 def test_second_monitor():
     assert is_fullscreen((1920, 0, 4480, 1440), (1920, 0, 4480, 1440), "x")
+
+
+def test_maximized_window_on_a_monitor_without_taskbar_is_not():
+    assert not is_fullscreen((-8, -8, 1928, 1088), MON, "Chrome_WidgetWin_1", zoomed=True)

@@ -17,7 +17,7 @@ research on body doubling is still small, so take it as a gentle helper, not a t
   Push-to-talk works over music.
 - **Small helpers, only when asked:** "let's start" (an opening question), "where was I" (your last
   two sentences), "break this down: ..." (3-5 small steps from the question model), "done for
-  today" (three of your own sentences from the day, then forgotten). Nothing is saved to disk.
+  today" (three of your own sentences from the day, then forgotten). None of this is saved to disk.
 - **Six looks:** wizard, blacksmith, healer, scribe, archer, cook. Add your own, and your own
   questions, in the mod folder (right-click menu; its README.txt explains the layout).
 - **A jar that slowly fills as you talk.** Full jars go on a little shelf in new colours. It never
@@ -26,8 +26,9 @@ research on body doubling is still small, so take it as a gentle helper, not a t
 - **Light on your PC:** idle it measured ~0% CPU for the app and ~0.1% for the listener, ~380 MB
   RAM together (the speech model). Turning speech into text takes a short burst of CPU. The optional
   question model runs in Ollama: about its download size in RAM while loaded.
-- **Stays out of the way:** steps aside when a game or video goes fullscreen on its screen (and, if you like, stops listening then);
-  "Apprentice, hide" for an hour. A small dot shows the mic: green listening, yellow paused, red off.
+- **Stays out of the way:** calm by default (no sudden moves), steps aside when a game or video goes fullscreen on its
+  screen (and, if you like, stops listening then); "Apprentice, hide" for an hour. A small dot shows the mic by colour
+  and shape: green dot listening, yellow bars paused, red X off, grey dash not running.
 
 ## Download
 

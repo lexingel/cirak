@@ -18,6 +18,7 @@ class Listener:
         self.gate = QuestionGate()
         self.mic_on = True
         self.paused = False
+        self._pause_msg = None  # re-sent to an app that connects mid-call
         self._heard = False
         self._told_no_model = False
         self.lang = "en"
@@ -39,10 +40,15 @@ class Listener:
             msg = {"type": "paused", "reason": "call"}
             if isinstance(busy, str):
                 msg["who"] = busy  # shown in the right-click menu, so a silent apprentice has a reason
+            self._pause_msg = msg
             self.send(msg)
         elif not busy and self.paused:
             self.paused = False
             self.send({"type": "resumed"})
+
+    def hello(self) -> list:
+        """State a freshly connected app can't know: a call that started before it connected."""
+        return [self._pause_msg] if self.paused and self._pause_msg else []
 
     def speech_start(self) -> None:
         # Speaker playing -> probably a video or music, not the user: don't even look up.

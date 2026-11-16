@@ -10,8 +10,9 @@ const MINUTES := [10, 20, 30, 45, 60, 90]  ## talk per jar; every later jar take
 const SHELF := 6  ## jars shown on the shelf (2 rows of 3)
 const PX := 3  ## one art pixel on screen, like the apprentice
 const JAR := [".kkk.", "ogggo", "ohggo", "ogggo", "ogggo", "ogggo", ".ooo."]  ## 5x7, rows 1-5 hold liquid
-const BREWS := [Color("7ad13a"), Color("3ac0b0"), Color("4a7be0"), Color("a35ce0"), Color("e05c9e"), Color("e0b030")]
-const INK := {"k": Color("8a5a2b"), "o": Color("2a2230"), "g": Color(0.85, 0.93, 0.97, 0.45), "h": Color(1, 1, 1, 0.8)}
+## neighbours on the shelf never look alike (no green next to teal, blue next to purple)
+const BREWS := [Color("7ad13a"), Color("4a7be0"), Color("e05c9e"), Color("3ac0b0"), Color("e0b030"), Color("a35ce0")]
+const INK := {"k": Color("8a5a2b"), "o": Color("3b2a22"), "g": Color(0.85, 0.93, 0.97, 0.45), "h": Color(1, 1, 1, 0.8)}
 const PLANK := Color("6b4423")
 
 var seconds := 0.0
@@ -61,8 +62,9 @@ func add(s: float) -> void:
 
 func _draw() -> void:
 	var f := fill(seconds)
-	_jar(jar_at, BREWS[f[0] % BREWS.size()], rows(f[1]))
 	var w := 5 * PX
+	draw_rect(Rect2(jar_at + Vector2(0, -PX), Vector2(w, PX)), PLANK)  # it stands on something too
+	_jar(jar_at + Vector2(0, -PX), BREWS[f[0] % BREWS.size()], rows(f[1]))
 	for i in 2:  # two planks, bottom row fills first
 		draw_rect(Rect2(shelf_at + Vector2(0, -i * (7 * PX + 2 * PX) - PX), Vector2(3 * w + 2 * PX, PX)), PLANK)
 	var jars := shown(f[0])

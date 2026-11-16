@@ -39,15 +39,12 @@ def test_local_fails_no_key_falls_back_in_language(monkeypatch):
     assert ask("x", lang="tr", local=NO_LOCAL, rng=random.Random(1)) in FALLBACK["tr"]
 
 
-def test_haiku_used_when_given_and_thinking_off():
-    f = Fake("Hangi buton en çok canını sıkıyor?")
-    assert ask("buton hizası", lang="tr", local=NO_LOCAL, client=f) == "Hangi buton en çok canını sıkıyor?"
-    assert f.calls[0]["model"] == "claude-haiku-5-5"
-    assert f.calls[0]["thinking"] == {"type": "disabled"}
-
-
-def test_haiku_error_falls_back():
-    assert ask("x", lang="en", local=NO_LOCAL, client=Boom(), rng=random.Random(1)) in FALLBACK["en"]
+def test_narration_never_goes_online_even_with_a_key(monkeypatch):
+    # README promise: only "ask/tell Claude" leave the PC; a dev key in the environment changes nothing
+    import asker
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    assert not hasattr(asker, "_haiku")
+    assert ask("x", lang="en", local=NO_LOCAL, rng=random.Random(1)) in FALLBACK["en"]
 
 
 def test_too_long_or_empty_falls_back():

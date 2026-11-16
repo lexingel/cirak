@@ -244,3 +244,12 @@ def test_session_log_is_capped():
     for i in range(500):
         L.on_client({"type": "typed", "text": f"step number {i} of the plan"})
     assert len(L.session) == 200
+
+
+def test_a_reconnecting_app_hears_about_a_call_still_on():
+    L, sent, state, _ = make()
+    assert L.hello() == []
+    state["call"] = "Discord.exe"; L.tick()
+    assert L.hello() == [{"type": "paused", "reason": "call", "who": "Discord.exe"}]
+    state["call"] = False; L.tick()
+    assert L.hello() == []

@@ -4,6 +4,7 @@ extends Node
 
 signal message(msg: Dictionary)
 signal connected
+signal disconnected
 
 const URL := "ws://127.0.0.1:47613"
 const RETRY_SECONDS := 2.0
@@ -77,7 +78,9 @@ func _process(delta: float) -> void:
 			if not msg.is_empty():
 				message.emit(msg)
 	elif st == WebSocketPeer.STATE_CLOSED:
-		_was_open = false
+		if _was_open:
+			_was_open = false
+			disconnected.emit()
 		_since_launch += delta
 		if needs_relaunch(_pid > 0 and OS.is_process_running(_pid), _since_launch):
 			_launch()
@@ -101,10 +104,11 @@ func _notification(what: int) -> void:
 ## Ask the listener to close its mic and leave; a hard kill mid-stream once took a USB audio
 ## interface (and its USB controller) down. Kill only if it hangs.
 func _stop_listener() -> void:
-	if _pid <= 0:
-		return
 	if _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
-		_ws.send_text(JSON.stringify({"type": "bye"}))
+		_ws.send_text(JSON.stringify({"type": "bye"}))  # also an older listener we didn't start
+		if _pid <= 0:
+			_ws.poll()
+			return
 		var until := Time.get_ticks_msec() + BYE_WAIT_MS
 		while OS.is_process_running(_pid) and Time.get_ticks_msec() < until:
 			_ws.poll()
