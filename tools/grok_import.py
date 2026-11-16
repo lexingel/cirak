@@ -65,6 +65,15 @@ def split(im: Image.Image) -> list:
             if x - start > im.width // 20:  # a real figure, not a stray fringe column
                 out.append(im.crop((start, 0, x, im.height)))
             start = None
+    if len(out) > 1:  # two benches touching: cut a too-wide span at its thinnest middle column
+        narrow = min(c.width for c in out)
+        for i in reversed(range(len(out))):
+            c = out[i]
+            if c.width > 1.6 * narrow:
+                a = c.getchannel("A")
+                fill = [sum(1 for y in range(0, c.height, 2) if a.getpixel((x, y))) for x in range(c.width)]
+                cut = min(range(c.width // 3, 2 * c.width // 3), key=fill.__getitem__)
+                out[i:i + 1] = [c.crop((0, 0, cut, c.height)), c.crop((cut, 0, c.width, c.height))]
     return out
 
 

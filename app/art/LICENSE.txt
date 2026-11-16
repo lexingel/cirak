@@ -9,7 +9,7 @@ credit ("Çırak contributors"), link the license and say if you changed them.
 
 The code of Çırak is MIT (see LICENSE in the project root); this file covers only these drawings.
 
-The default wizard (apprentice_*.png in this folder, 64x64 frames) is AI-assisted (Grok Imagine),
+All six looks (the wizard in this folder and the five in skins/, 64x64 frames) are AI-assisted (Grok Imagine),
 edited by Çırak contributors: keyed, scaled, cut, palette-locked and finished with tools/grok_import.py.
 The raw images and the exact prompts are in art_src/grok/. Purely AI-made parts may not be
 copyrightable in every country; the CC BY 4.0 grant above covers what Çırak contributors made.
