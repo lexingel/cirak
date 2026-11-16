@@ -1,16 +1,18 @@
-"""Grok Imagine (or any generator) art -> real 48x48 apprentice frames.
+"""Grok Imagine (or any generator) art -> real pixel apprentice frames and the app's strips.
 
-    python tools/grok_import.py ROW.png [ROW2.png ...] --out DIR [--cells 4] [--colors 24] [--size 48]
+    python tools/grok_import.py art_src/grok/wizard_master.png art_src/grok/wizard_row1.png \\
+        art_src/grok/wizard_row2.png --out art_src/out/wizard [--app app/art] [--size 64] [--colors 24]
 
-Each input is one image on a flat magenta (#FF00FF) background: a single figure (master) or a row of
-N cells. Steps, all local (Gizpix does the pixel work, it must be at D:\\Claude\\PixTools or $GIZPIX):
-  1. magenta -> transparent (also the pink fringe the generator blurs into the edges)
-  2. split into cells: on fully transparent columns, or N equal parts with --cells
-  3. each cell: crop to the figure, pix_snap to real pixels, fit into SIZE x SIZE (bottom-centred, so the
-     bench/feet line stays put), never upscaled
-  4. one shared palette for every cell of every input (apply_palette auto --colors N), then speck_fix
-Writes DIR/<input name>_<i>.png (one frame each), DIR/sheet.png (all frames, for review at 3x) and
-prints a line per frame. Turning frames into the app's strips is a separate, deliberate copy.
+Inputs: one image on a flat magenta background each, a single figure (master) or a row of 4 cells
+(split on the magenta columns between figures). Steps, all local:
+  1. magenta (and the pink fringe JPEG leaves around it) -> transparent
+  2. every cell is scaled so its bench is as wide as the first input's bench: one scale for all
+  3. the bench legs are cut off under the table top; a 3 px front edge is drawn back in pixel art
+  4. box-downscale so the tallest frame fits SIZE x SIZE, bench top on the same row in every frame
+  5. one shared palette for every frame (Gizpix apply_palette auto --colors N, at D:\\Claude\\PixTools)
+Writes DIR/<input>_<i>.png, DIR/sheet.png (3x review) and, with --app, the strips
+apprentice_<state>.png that apprentice.gd loads (frame size = strip height).
+The automatic grid guess (pix_snap) was unreliable on Grok rows, so this does not use it.
 """
 import argparse
 import os
@@ -22,11 +24,22 @@ from pathlib import Path
 from PIL import Image
 
 GIZPIX = Path(os.environ.get("GIZPIX", r"D:\Claude\PixTools")) / "gizpix.py"
+CUT = 0.07  # bench top thickness kept under the widest row, as a share of the cell height
+EDGE = 3  # front edge drawn under the table top, art pixels
+OUTLINE = (0x3B, 0x2A, 0x22, 255)
+# which cells make which strip: (input stem suffix, cell) repeated to keep the app's frame counts/timing
+STRIPS = {
+    "working": [("row1", 0)] * 4 + [("row1", 1)] * 4,  # 8 frames @ 8 fps: one stir a second
+    "listening": [("row1", 2)] * 2,
+    "nodding": [("row1", 3), ("row1", 3), ("row1", 2)],
+    "asking": [("row2", 0)] * 2,
+    "toss": [("row2", 1)] * 3 + [("row2", 2)] * 3 + [("row2", 3)] * 4,
+}
 
 
 def is_key(r: int, g: int, b: int) -> bool:
-    """Magenta and its blurred fringe: red and blue both well above green."""
-    return r > 150 and b > 150 and g < 0.6 * min(r, b)
+    """Magenta and its fringe: red and blue both well above green."""
+    return r > 150 and b > 80 and g < 0.6 * min(r, b)
 
 
 def key_out(im: Image.Image) -> Image.Image:
@@ -40,10 +53,8 @@ def key_out(im: Image.Image) -> Image.Image:
     return im
 
 
-def split(im: Image.Image, cells: int) -> list:
-    if cells:
-        w = im.width // cells
-        return [im.crop((i * w, 0, (i + 1) * w, im.height)) for i in range(cells)]
+def split(im: Image.Image) -> list:
+    """Figures separated by fully transparent columns."""
     alpha = im.getchannel("A")
     filled = [any(alpha.getpixel((x, y)) for y in range(0, im.height, 2)) for x in range(im.width)]
     out, start = [], None
@@ -57,6 +68,31 @@ def split(im: Image.Image, cells: int) -> list:
     return out
 
 
+def bench(cell: Image.Image):
+    """(cropped cell, bench top row, bench width, bench centre x): the bench is the widest part."""
+    cell = cell.crop(cell.getbbox())
+    alpha = cell.getchannel("A")
+    widths = [sum(1 for x in range(cell.width) if alpha.getpixel((x, y))) for y in range(cell.height)]
+    top = next(y for y, w in enumerate(widths) if w >= 0.9 * max(widths))
+    row = [x for x in range(cell.width) if alpha.getpixel((x, top))]
+    return cell, top, max(widths), (row[0] + row[-1]) / 2
+
+
+def front_edge(frame: Image.Image) -> Image.Image:
+    """Under the lowest row of the table top: EDGE rows of darker wood, outlined."""
+    px = frame.load()
+    bottom = max(y for y in range(frame.height) for x in range(frame.width) if px[x, y][3])
+    cols = [x for x in range(frame.width) if px[x, bottom][3]]
+    x0, x1 = min(cols), max(cols)
+    wood = sorted((px[x, bottom - 2][:3] for x in cols if px[x, bottom - 2][3]), key=sum)
+    dark = wood[len(wood) // 4] + (255,)  # a shade from the top's own wood, from the palette
+    for y in range(bottom, min(frame.height, bottom + EDGE + 1)):
+        for x in range(x0, x1 + 1):
+            edge = y in (bottom, bottom + EDGE) or x in (x0, x1)
+            px[x, y] = OUTLINE if edge else dark
+    return frame
+
+
 def gizpix(*args) -> str:
     r = subprocess.run([sys.executable, str(GIZPIX), *map(str, args)], capture_output=True, text=True)
     if r.returncode:
@@ -64,56 +100,69 @@ def gizpix(*args) -> str:
     return r.stdout.strip()
 
 
-def fit(sprite: Image.Image, size: int) -> Image.Image:
-    box = sprite.getbbox()
-    if box:
-        sprite = sprite.crop(box)
-    if sprite.width > size or sprite.height > size:  # snapped a bit too fine: shrink, never blur
-        k = min(size / sprite.width, size / sprite.height)
-        sprite = sprite.resize((max(1, int(sprite.width * k)), max(1, int(sprite.height * k))), Image.NEAREST)
-    canvas = Image.new("RGBA", (size, size))
-    canvas.paste(sprite, ((size - sprite.width) // 2, size - sprite.height))
-    return canvas
+def frames_from(images, size: int):
+    cells = []  # (name, cell, top, bench width, bench centre)
+    for src in images:
+        found = split(key_out(Image.open(src)))
+        cells += [(f"{src.stem}_{i}", *bench(c)) for i, c in enumerate(found)]
+    ref = cells[0][3]
+    norm = []
+    for name, c, top, bw, cx in cells:  # same scale for all: bench as wide as the first input's
+        k = ref / bw
+        c = c.resize((round(c.width * k), round(c.height * k)), Image.LANCZOS)
+        top = round(top * k)
+        norm.append((name, c.crop((0, 0, c.width, int(top + CUT * c.height))), top, cx * k))
+    above = max(top for _, _, top, _ in norm)
+    below = max(c.height - top for _, c, top, _ in norm)
+    wide = 2 * max(max(cx, c.width - cx) for _, c, _, cx in norm)  # bench centred, both sides fit
+    k = min((size - 2 - EDGE) / (above + below), (size - 2) / wide)
+    out = []
+    for name, c, top, cx in norm:
+        s = c.resize((max(1, round(c.width * k)), max(1, round(c.height * k))), Image.BOX)
+        s.putalpha(s.getchannel("A").point(lambda v: 255 if v > 140 else 0))
+        f = Image.new("RGBA", (size, size))
+        f.alpha_composite(s, (size // 2 - round(cx * k), round(above * k) + 1 - round(top * k)))
+        out.append((name, f))
+    return out
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("images", nargs="+", type=Path)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--cells", type=int, default=0, help="equal cells per row (default: split on gaps)")
+    ap.add_argument("--app", type=Path, help="also write the strips apprentice_<state>.png here")
     ap.add_argument("--colors", type=int, default=24)
-    ap.add_argument("--size", type=int, default=48)
+    ap.add_argument("--size", type=int, default=64)
     a = ap.parse_args(argv)
     a.out.mkdir(parents=True, exist_ok=True)
-    frames = []
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        for src in a.images:
-            for i, cell in enumerate(split(key_out(Image.open(src)), a.cells)):
-                raw, snapped = tmp / f"{src.stem}_{i}_raw.png", tmp / f"{src.stem}_{i}_snap.png"
-                box = cell.getbbox()
-                (cell.crop(box) if box else cell).save(raw)
-                report = gizpix("pix_snap", raw, snapped)
-                frames.append((f"{src.stem}_{i}", fit(Image.open(snapped).convert("RGBA"), a.size), report.splitlines()[-1:]))
-        # one palette for everything: palette the whole sheet at once, then cut it back up
+    frames = frames_from(a.images, a.size)
+    with tempfile.TemporaryDirectory() as tmp:  # one palette for everything: the whole sheet at once
         sheet = Image.new("RGBA", (a.size * len(frames), a.size))
-        for k, (_, f, _) in enumerate(frames):
+        for k, (_, f) in enumerate(frames):
             sheet.paste(f, (k * a.size, 0))
-        sp = tmp / "sheet.png"
+        sp = Path(tmp) / "sheet.png"
         sheet.save(sp)
-        gizpix("apply_palette", "auto", sp, "--colors", a.colors, "--out", tmp / "pal")
-        sheet = Image.open(tmp / "pal" / "sheet.png").convert("RGBA")
-        for k, (name, _, report) in enumerate(frames):
-            p = a.out / f"{name}.png"
-            sheet.crop((k * a.size, 0, (k + 1) * a.size, a.size)).save(p)
-            gizpix("speck_fix", p, p)
-            print(name, *report)
-    review = Image.new("RGBA", (a.size * len(frames) * 3, a.size * 3), (70, 60, 80, 255))
-    for k, (name, _, _) in enumerate(frames):
-        f = Image.open(a.out / f"{name}.png").resize((a.size * 3, a.size * 3), Image.NEAREST)
-        review.alpha_composite(f, (k * a.size * 3, 0))
+        gizpix("apply_palette", "auto", sp, "--colors", a.colors, "--out", Path(tmp) / "pal")
+        sheet = Image.open(Path(tmp) / "pal" / "sheet.png").convert("RGBA")
+    done = {}
+    for k, (name, _) in enumerate(frames):
+        f = front_edge(sheet.crop((k * a.size, 0, (k + 1) * a.size, a.size)))
+        f.save(a.out / f"{name}.png")
+        done[name] = f
+        print(name)
+    review = Image.new("RGBA", (a.size * len(done) * 3, a.size * 3), (70, 60, 80, 255))
+    for k, f in enumerate(done.values()):
+        review.alpha_composite(f.resize((a.size * 3, a.size * 3), Image.NEAREST), (k * a.size * 3, 0))
     review.save(a.out / "sheet.png")
     print("review:", a.out / "sheet.png")
+    if a.app:
+        look = a.images[0].stem.rsplit("_", 1)[0]
+        for state, cells in STRIPS.items():
+            strip = Image.new("RGBA", (a.size * len(cells), a.size))
+            for i, (row, c) in enumerate(cells):
+                strip.paste(done[f"{look}_{row}_{c}"], (i * a.size, 0))
+            strip.save(a.app / f"apprentice_{state}.png")
+        print("strips:", a.app)
 
 
 if __name__ == "__main__":

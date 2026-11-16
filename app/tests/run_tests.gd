@@ -171,7 +171,12 @@ func test_skins() -> void:
 	check(MainScript.SKIN_NAMES["tr"].size() == MainScript.SKINS.size(), "every look has a Turkish name")
 	for s in MainScript.SKINS:
 		var icon: Texture2D = Apprentice.preview(s)
-		check(icon != null and icon.get_width() == Apprentice.FRAME, "look %s has a menu icon" % s)
+		check(icon != null and icon.get_width() == Apprentice.strip(s, "listening").get_height(), "look %s has a menu icon" % s)
+	var w = new_apprentice()
+	check(w.frame == 64 and w.sprite_rect().size == Vector2(128, 128), "the wizard: 64 px frames at 2x")
+	w.set_skin("okcu")
+	check(w.frame == 48 and w.sprite_rect().size == Vector2(144, 144), "an older look: 48 px frames at 3x")
+	check(w.sprite_rect().end.y == 72, "both sizes stand on the same line")
 	check(Apprentice.preview("missing") != null, "a missing look falls back to the wizard's icon")
 	var a3 = new_apprentice()
 	a3.set_skin("missing")

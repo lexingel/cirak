@@ -163,9 +163,7 @@ func _ready() -> void:
 	apprentice.position = Vector2(130, 220 - 72)
 	add_child(apprentice)
 	apprentice.shape_changed.connect(_update_passthrough)
-	var r := apprentice.sprite_rect()
-	jars.jar_at = Vector2(r.position.x - 5 * Jars.PX - 6, r.end.y)
-	jars.shelf_at = Vector2(r.end.x + 2, r.end.y)
+	_layout()
 	jars.seconds = cfg.get_value("prefs", "talk", 0.0)
 	jars.stepped.connect(_save)
 	jars.filled.connect(func(): apprentice.handle({"type": "say", "text": ui(lang, "jar")}))
@@ -532,8 +530,20 @@ func _set_mic_device(n: String) -> void:
 func _set_skin(s: String) -> void:
 	skin = s
 	apprentice.set_skin(s)
+	_layout()
+	_update_passthrough()
 	_save()
 	_refresh_menu()
+
+
+## Jars beside the apprentice, in its pixel size (a look can be 64 px at 2x or 48 px at 3x).
+func _layout() -> void:
+	var r := apprentice.sprite_rect()
+	jars.px = apprentice.scale_px
+	jars.jar_at = Vector2(r.position.x - 5 * jars.px - 6, r.end.y)
+	jars.shelf_at = Vector2(r.end.x + 2, r.end.y)
+	jars.queue_redraw()
+	queue_redraw()
 
 
 func _set_level(l: String) -> void:
@@ -720,7 +730,7 @@ const MIC_COLORS := {"on": Color("4caf50"), "paused": Color("d9a441"), "off": Co
 
 func _draw() -> void:
 	var r := apprentice.sprite_rect()
-	var p := Vector2(r.end.x - 26, r.end.y - 16)  # just right of the cauldron
+	var p := Vector2(r.end.x - 9, r.end.y - 30)  # right of the cauldron, above the bench (free in both art sizes)
 	var st := _mic_state()
 	draw_circle(p, 7.0, Color("2a2230"))
 	draw_circle(p, 5.5, MIC_COLORS[st])
@@ -779,8 +789,8 @@ questions\\tr\\*.txt  ve/and  questions\\en\\*.txt
 
 looks\\<ad-name>\\apprentice_working.png, apprentice_listening.png, apprentice_nodding.png, apprentice_asking.png
   (+ isteğe bağlı/optional apprentice_toss.png)
-  48x48 karelerin yan yana dizildiği şeritler, Çırak'ın kendi çizimleriyle aynı düzen.
+  Kare karelerin (48x48 ya da 64x64) yan yana dizildiği şeritler, Çırak'ın kendi çizimleriyle aynı düzen.
   Yeni görünüm, Çırak'ı yeniden açınca menüde (Çırak) çıkar.
-  Strips of 48x48 frames side by side, the same layout as the built-in art.
+  Strips of square frames (48x48 or 64x64) side by side, the same layout as the built-in art.
   A new look shows in the menu (Apprentice) after you restart Çırak.
 """

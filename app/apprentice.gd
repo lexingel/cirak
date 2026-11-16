@@ -6,8 +6,7 @@ signal shape_changed  ## bubble shown/hidden -> window click area changes
 
 enum State { WORKING, LISTENING, NODDING, ASKING }
 
-const SCALE := 3
-const FRAME := 48
+const FOOT := 72  ## px from the node's position down to where the apprentice stands, at any frame size
 const ANIMS := {
 	State.WORKING: ["working", 8.0, true],
 	State.LISTENING: ["listening", 2.0, true],
@@ -22,13 +21,14 @@ var skin := ""  ## set before _ready (or via set_skin) to start in another look
 var sprite := AnimatedSprite2D.new()
 var bubble := Bubble.new()
 var toss_timer := Timer.new()
+var frame := 48  ## art px per frame side: the strip's height (64 for the new art, 48 for older looks)
+var scale_px := 3  ## screen px per art px: 64 -> 2x (128 px), 48 -> 3x (144 px), about the same size
 var calm := false  ## menu "Calm apprentice": stirs slowly, never tosses
 static var mod_root := ""  ## tests point this elsewhere; "" = %LOCALAPPDATA%\Cirak
 
 
 func _ready() -> void:
 	sprite.sprite_frames = _load_frames()
-	sprite.scale = Vector2(SCALE, SCALE)
 	sprite.animation_finished.connect(_on_anim_finished)
 	sprite.animation_looped.connect(_on_loop)
 	add_child(sprite)
@@ -36,7 +36,6 @@ func _ready() -> void:
 	add_child(bubble)
 	bubble.resized.connect(shape_changed.emit)  # click area follows the bubble's real size
 	bubble.visibility_changed.connect(shape_changed.emit)  # a waiting note showing up on its own
-	bubble.position = Vector2(-118, -FRAME * SCALE / 2.0 - 70)
 	_enter(State.WORKING)
 	toss_timer.timeout.connect(_on_toss_timer)
 	add_child(toss_timer)
@@ -69,9 +68,15 @@ func set_skin(s: String) -> void:
 	_enter(state)
 
 
-## Strips live in <art_dir>/apprentice_<name>.png (48 px frames, side by side).
+## Strips live in <art_dir>/apprentice_<name>.png (square frames side by side, frame size = strip height).
 ## Loaded from disk so new art from tools/import_frames.py works without an editor import.
 func _load_frames() -> SpriteFrames:
+	var w := strip(skin, "working")
+	frame = w.get_height() if w else 48
+	scale_px = 2 if frame > 48 else 3
+	sprite.scale = Vector2(scale_px, scale_px)
+	sprite.position.y = FOOT - frame * scale_px / 2.0  # the feet stay put when the size changes
+	bubble.position = Vector2(-118, FOOT - frame * scale_px - 70)
 	var sf := SpriteFrames.new()
 	sf.remove_animation("default")
 	for spec in ANIMS.values() + [TOSS]:
@@ -83,10 +88,10 @@ func _load_frames() -> SpriteFrames:
 		if img == null:
 			continue
 		var tex := ImageTexture.create_from_image(img)
-		for i in range(img.get_width() / FRAME):
+		for i in range(img.get_width() / frame):
 			var at := AtlasTexture.new()
 			at.atlas = tex
-			at.region = Rect2(i * FRAME, 0, FRAME, FRAME)
+			at.region = Rect2(i * frame, 0, frame, frame)
 			sf.add_frame(name, at)
 	return sf
 
@@ -109,7 +114,7 @@ static func preview(s: String) -> Texture2D:
 		img = strip("", "listening")
 	var at := AtlasTexture.new()
 	at.atlas = ImageTexture.create_from_image(img)
-	at.region = Rect2(0, 0, FRAME, FRAME)
+	at.region = Rect2(0, 0, img.get_height(), img.get_height())
 	return at
 
 
@@ -143,8 +148,8 @@ func on_typed(text: String) -> bool:
 
 ## Click area of the sprite, in this node's parent space.
 func sprite_rect() -> Rect2:
-	var half := FRAME * SCALE / 2.0
-	return Rect2(position - Vector2(half, half), Vector2(FRAME * SCALE, FRAME * SCALE))
+	var side := frame * scale_px
+	return Rect2(position + Vector2(-side / 2.0, FOOT - side), Vector2(side, side))
 
 
 ## Plays the toss once if the apprentice is just stirring. Returns whether it started.

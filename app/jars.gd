@@ -8,7 +8,7 @@ signal stepped  ## the picture changed (worth saving)
 
 const MINUTES := [10, 20, 30, 45, 60, 90]  ## talk per jar; every later jar takes the last
 const SHELF := 6  ## jars shown on the shelf (2 rows of 3)
-const PX := 3  ## one art pixel on screen, like the apprentice
+var px := 3  ## one art pixel on screen: the apprentice's (main sets it)
 const JAR := [".kkk.", "ogggo", "ohggo", "ogggo", "ogggo", "ogggo", ".ooo."]  ## 5x7, rows 1-5 hold liquid
 ## neighbours on the shelf never look alike (no green next to teal, blue next to purple)
 const BREWS := [Color("7ad13a"), Color("4a7be0"), Color("e05c9e"), Color("3ac0b0"), Color("e0b030"), Color("a35ce0")]
@@ -40,8 +40,8 @@ static func shown(full: int) -> Array:
 ## Where the jars and shelf are drawn. The window's click region must cover it: on Windows that
 ## region also clips what is shown.
 func area() -> Rect2:
-	var top := shelf_at.y - 2 * (7 * PX + 2 * PX)
-	return Rect2(jar_at.x, top, shelf_at.x + 3 * 5 * PX + 2 * PX - jar_at.x, shelf_at.y - top)
+	var top := shelf_at.y - 2 * (7 * px + 2 * px)
+	return Rect2(jar_at.x, top, shelf_at.x + 3 * 5 * px + 2 * px - jar_at.x, shelf_at.y - top)
 
 
 ## Liquid rows (0..5) for a fraction.
@@ -62,14 +62,14 @@ func add(s: float) -> void:
 
 func _draw() -> void:
 	var f := fill(seconds)
-	var w := 5 * PX
-	draw_rect(Rect2(jar_at + Vector2(0, -PX), Vector2(w, PX)), PLANK)  # it stands on something too
-	_jar(jar_at + Vector2(0, -PX), BREWS[f[0] % BREWS.size()], rows(f[1]))
+	var w := 5 * px
+	draw_rect(Rect2(jar_at + Vector2(0, -px), Vector2(w, px)), PLANK)  # it stands on something too
+	_jar(jar_at + Vector2(0, -px), BREWS[f[0] % BREWS.size()], rows(f[1]))
 	for i in 2:  # two planks, bottom row fills first
-		draw_rect(Rect2(shelf_at + Vector2(0, -i * (7 * PX + 2 * PX) - PX), Vector2(3 * w + 2 * PX, PX)), PLANK)
+		draw_rect(Rect2(shelf_at + Vector2(0, -i * (7 * px + 2 * px) - px), Vector2(3 * w + 2 * px, px)), PLANK)
 	var jars := shown(f[0])
 	for k in jars.size():
-		var at := shelf_at + Vector2((k % 3) * (w + PX), -(k / 3) * (7 * PX + 2 * PX) - PX)
+		var at := shelf_at + Vector2((k % 3) * (w + px), -(k / 3) * (7 * px + 2 * px) - px)
 		_jar(at, BREWS[jars[k] % BREWS.size()], 5)
 
 
@@ -82,4 +82,4 @@ func _jar(bottom_left: Vector2, brew: Color, liquid: int) -> void:
 			var col: Color = INK[c]
 			if (c == "g" or c == "h") and y >= 6 - liquid:
 				col = brew.lightened(0.45) if c == "h" else brew
-			draw_rect(Rect2(bottom_left + Vector2(x * PX, (y - JAR.size()) * PX), Vector2(PX, PX)), col)
+			draw_rect(Rect2(bottom_left + Vector2(x * px, (y - JAR.size()) * px), Vector2(px, px)), col)
