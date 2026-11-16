@@ -143,3 +143,21 @@ def test_picking_a_model_saves_it_and_only_known_ones(tmp_path):
     finally:
         asker.LOCAL_MODEL = old
     assert set(asker.MODELS) == {"qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:7b"}
+
+
+def test_breakdown_parses_numbered_steps():
+    from asker import breakdown
+    reply = "Sure!\n1. Clear the counter\n2) Put dishes in the sink\n- Wipe the table\n3. Sweep\n4. Mop\n5. Rest\n6. Extra"
+    assert breakdown("kitchen", "en", local=lambda s, u: reply) == [
+        "Clear the counter", "Put dishes in the sink", "Wipe the table", "Sweep", "Mop"]
+
+
+def test_breakdown_without_model_or_with_junk_is_none():
+    from asker import breakdown
+    assert breakdown("kitchen", "en", local=lambda s, u: None) is None
+    assert breakdown("kitchen", "en", local=lambda s, u: "I can't help with that.") is None
+
+
+def test_breakdown_that_copies_the_example_is_none():
+    from asker import breakdown, STEPS
+    assert breakdown("mutfağı toplamak", "tr", local=lambda s, u: STEPS["tr"][1][1]) is None

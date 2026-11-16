@@ -119,3 +119,8 @@ Faz 4 kararlardan sonra.
   - "Çırak, neredeydim / where was I": son 2 anlatım cümlesini aynen söyler. Plandan sapma: Ollama özeti yok, çünkü 1.5b modelin Türkçesi zayıf ve aynen alıntı uydurma yapmaz. Son 10 cümle yalnız RAM'de tutulur.
   - Soru sıklığı "Hiç (sadece dinle)" eklendi. Menüde "Sakin çırak" var: yavaş karıştırır, malzeme atmaz.
   - Canlı denendi: başlıyorum, iki anlatım cümlesi, neredeydim; balon ekran görüntüsünde.
+- **Faz 3 bitti (2026-11-16).**
+  - "Çırak, bunu parçala: ... / break this down: ...": yerel soru modeli 3-5 adım verir (İngilizce talimat + tek örnek; örnek olmadan küçük modeller tek satırda duruyordu). Model yoksa "Soru modeli lazım" der. 1.5b örneği aynen kopyalarsa sonuç atılır.
+  - Türkçe adımlar 1.5b/3b ile bazen tuhaf ("mutfağı toplamak" yemek tarifine döndü). Kullanıcı kararı: olduğu gibi gönder.
+  - "Çırak, bitirdim / done for today" (K4 = evet, en küçük hali): günün anlatımından ilk, orta ve son cümle (en çok 10 kelime) alıntılanır, sonra silinir. Model yok, kayıt yok; RAM'de en çok 200 cümle.
+  - Canlı denendi: özet balonu ve 5 adımlı balon ekran görüntüsünde.

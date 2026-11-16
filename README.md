@@ -15,6 +15,9 @@ research on body doubling is still small, so take it as a gentle helper, not a t
 - **Voice commands:** media keys, volume, apps from your own list, "ask Claude" / "tell Claude"
   (if Claude Code is installed; only these two go online, and only the words after the command).
   Push-to-talk works over music.
+- **Small helpers, only when asked:** "let's start" (an opening question), "where was I" (your last
+  two sentences), "break this down: ..." (3-5 small steps from the question model), "done for
+  today" (three of your own sentences from the day, then forgotten). Nothing is saved to disk.
 - **Six looks:** wizard, blacksmith, healer, scribe, archer, cook.
 - **English and Turkish.**
 - **Light on your PC:** idle it measured ~0% CPU for the app and ~0.1% for the listener, ~380 MB

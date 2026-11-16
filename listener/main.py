@@ -80,8 +80,15 @@ def make_actions(speaker_busy, spawn, send=lambda m: None):
         send({"type": "show"})
         return commands.reply(lang, "back")
 
+    def do_breakdown(task, lang, say):
+        def later():  # the local model needs a few seconds for five lines
+            steps = asker.breakdown(task, lang)
+            say("\n".join(f"{i}. {s}" for i, s in enumerate(steps, 1)) if steps else commands.reply(lang, "no_brain"))
+        spawn(later)
+        return commands.reply(lang, "breaking", task)
+
     return {"media": do_media, "open": do_open, "ask_claude": do_ask, "claude_task": do_task,
-            "hide": do_hide, "show": do_show}
+            "hide": do_hide, "show": do_show, "breakdown": do_breakdown}
 
 
 def open_hearing(make):

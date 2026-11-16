@@ -14,3 +14,18 @@ def test_claude_answer_is_marked_online(monkeypatch):
     monkeypatch.setattr(main.assistants, "ask_claude", lambda t, lang: "42")
     main.make_actions(lambda: False, lambda fn: fn())["ask_claude"]("x", "en", said.append)
     assert said == ["42\n(Claude, online)"]
+
+
+def test_breakdown_says_numbered_steps(monkeypatch):
+    said = []
+    monkeypatch.setattr(main.asker, "breakdown", lambda t, lang: ["Clear the counter", "Sweep"])
+    first = main.make_actions(lambda: False, lambda fn: fn())["breakdown"]("kitchen", "en", said.append)
+    assert "kitchen" in first
+    assert said == ["1. Clear the counter\n2. Sweep"]
+
+
+def test_breakdown_without_model_points_to_the_menu(monkeypatch):
+    said = []
+    monkeypatch.setattr(main.asker, "breakdown", lambda t, lang: None)
+    main.make_actions(lambda: False, lambda fn: fn())["breakdown"]("mutfak", "tr", said.append)
+    assert "Soru modeli" in said[0]

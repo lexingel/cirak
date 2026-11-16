@@ -224,3 +224,23 @@ def test_never_level_never_asks():
         L.on_client({"type": "typed", "text": LONG})
         clock[0] += 10000
     assert "question" not in types(sent)
+
+
+def test_done_sums_up_the_session_and_forgets_it():
+    L, sent, _, _ = make()
+    L.on_client({"type": "lang", "lang": "tr"})
+    L.on_client({"type": "typed", "text": "Çırak, bitirdim"})
+    assert sent[-1]["type"] == "say" and "görüşürüz" in sent[-1]["text"].lower()
+    for i in range(30):
+        L.on_client({"type": "typed", "text": f"step number {i} of the plan"})
+    L.on_client({"type": "typed", "text": "Apprentice, done for today"})
+    text = sent[-1]["text"]
+    assert "step number 0 " in text and "step number 15 " in text and "step number 29 " in text
+    assert len(L.session) == 0
+
+
+def test_session_log_is_capped():
+    L, _, _, _ = make()
+    for i in range(500):
+        L.on_client({"type": "typed", "text": f"step number {i} of the plan"})
+    assert len(L.session) == 200

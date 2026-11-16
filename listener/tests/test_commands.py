@@ -85,3 +85,14 @@ def test_start_and_recall():
     for t in ["Çırak, neredeydim?", "çırak nerede kalmıştık", "Apprentice, where was I?", "apprentice what was I doing"]:
         assert c.parse(t) == ("recall", ""), t
     assert c.parse("apprentice start Spotify") == ("open", "spotify")
+
+
+def test_breakdown_and_done():
+    for t, arg in [("Çırak, bunu parçala: mutfağı toplamak", "mutfağı toplamak"),
+                   ("çırak parçala vergi beyannamesi", "vergi beyannamesi"),
+                   ("Apprentice, break this down: clean the kitchen", "clean the kitchen"),
+                   ("apprentice break down my tax return", "my tax return")]:
+        assert c.parse(t) == ("breakdown", arg), t
+    for t in ["Çırak, bitirdim", "çırak bugünlük bu kadar", "Apprentice, done for today", "apprentice I'm done"]:
+        assert c.parse(t) == ("done", ""), t
+    assert c.parse("bunu parçala") is None  # no wake word: narration

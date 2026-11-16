@@ -24,6 +24,7 @@ class Listener:
         self.device = ""  # chosen mic name, "" = Windows default
         self.ptt_vk = 0xA3  # push-to-talk key (Windows key code), Right Ctrl until the app sends its own
         self.recent = collections.deque(maxlen=10)  # "where was I": RAM only, gone when the listener exits
+        self.session = collections.deque(maxlen=200)  # "done for today" summary: RAM only, cleared by it
         self._openings = collections.deque(maxlen=3)  # the last three "let's start" openings, not repeated
 
     @property
@@ -113,6 +114,9 @@ class Listener:
             last = list(self.recent)[-2:]
             self.say(commands.reply(self.lang, "recall", " … ".join(last)) if last else commands.reply(self.lang, "recall_none"))
             return True
+        if intent == "done":
+            self._sum_up()
+            return True
         act = self.actions.get(intent)
         try:
             msg = act(arg, self.lang, self.say) if act else commands.reply(self.lang, "unknown")
@@ -130,11 +134,20 @@ class Listener:
         self.gate.mark_asked(self.clock())  # no regular question right on top of it
         self.send({"type": "question", "text": q})
 
+    def _sum_up(self) -> None:
+        """"I'm done": three of the day's own sentences (first, middle, last), quoted, then forgotten."""
+        s = list(self.session)
+        picks = s if len(s) <= 3 else [s[0], s[len(s) // 2], s[-1]]
+        short = ["• " + (p if len(p.split()) <= 10 else " ".join(p.split()[:10]) + " …") for p in picks]
+        self.say(commands.reply(self.lang, "summary", "\n".join(short)) if short else commands.reply(self.lang, "bye"))
+        self.session.clear()
+
     def _narrate(self, text: str) -> bool:
         """Adds what the user said; asks if it's time. Returns whether a question went out."""
         now = self.clock()
         if worth_keeping(text):
             self.recent.append(text.strip())
+            self.session.append(text.strip())
         self.gate.add_text(text, now)
         if self.gate.should_ask(now):
             q = self.ask(self.gate.context(), self.lang)

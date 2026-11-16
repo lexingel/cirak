@@ -111,14 +111,22 @@ FALLBACK = {
 
 def ask_local(context: str, lang: str):
     """Ask the local Ollama model. Returns the reply text, or None if it isn't running."""
+    return _chat(SYSTEM[lang], context, 40, 8)
+
+
+def _chat(system: str, user: str, num_predict: int, timeout: float, shot=(), temperature=0.7):
+    """shot: (user, assistant) example turns before the real question."""
+    msgs = [{"role": "system", "content": system}]
+    for q, a in shot:
+        msgs += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
     body = json.dumps({
         "model": LOCAL_MODEL, "stream": False, "keep_alive": KEEP_ALIVE,
-        "messages": [{"role": "system", "content": SYSTEM[lang]}, {"role": "user", "content": context}],
-        "options": {"num_predict": 40, "temperature": 0.7},
+        "messages": msgs + [{"role": "user", "content": user}],
+        "options": {"num_predict": num_predict, "temperature": temperature},
     }).encode()
     try:
         req = urllib.request.Request(LOCAL_URL, body, {"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=8) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.load(r)["message"]["content"]
     except Exception:
         return None
@@ -187,3 +195,27 @@ def ask(context: str, lang: str = "en", client=None, local=ask_local, rng=random
     if not q and (client is not None or os.environ.get("ANTHROPIC_API_KEY")):
         q = _clean(_haiku(context, lang, client))
     return q or rng.choice(FALLBACK[lang])
+
+
+# English instructions + one worked example: without the example the small models stop after one line
+_STEPS_HOW = ("You split a task into 3 to 5 small, concrete steps for someone who struggles to start. "
+              "Step 1 takes two minutes. Short imperative lines, numbered. Only the list.")
+STEPS = {
+    "en": (_STEPS_HOW, ("fold the laundry", "1. Carry the basket to the bed\n2. Fold only the towels\n"
+                                            "3. Fold the shirts\n4. Pair the socks\n5. Put each pile away")),
+    "tr": (_STEPS_HOW + " Write the steps in simple everyday Turkish, informal (sen).",
+           ("çamaşırları katlamak", "1. Sepeti yatağın üstüne getir\n2. Önce sadece havluları katla\n"
+                                    "3. Tişörtleri katla\n4. Çorapları eşle\n5. Her yığını dolabına koy")),
+}
+STEP_LINE = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*(.+?)\s*$")
+
+
+def breakdown(task: str, lang: str = "en", local=None):
+    """"Çırak, bunu parçala: ...": up to 5 small steps from the local model, or None (no model, junk)."""
+    lang = lang if lang in STEPS else "en"
+    how, shot = STEPS[lang]
+    reply = (local or (lambda s, u: _chat(s, u, 120, 30, shot=[shot], temperature=0.5)))(how, task)
+    steps = [m.group(1).strip("*") for m in map(STEP_LINE.match, (reply or "").splitlines()) if m][:5]
+    if sum(x in shot[1] for x in steps) > len(steps) // 2:  # the 1.5b model copies the example as-is
+        return None
+    return steps if len(steps) >= 2 else None

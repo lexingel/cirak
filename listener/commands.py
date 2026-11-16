@@ -15,6 +15,10 @@ RULES = [
     ("ask_claude", re.compile(rf"^ask\s+{CLAUDE}\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^{CLAUDE}\s+(iş\s+ver|yaptır|söyle)\s*:?\s*(?P<arg>.+)$")),
     ("claude_task", re.compile(rf"^tell\s+{CLAUDE}\s+(to\s+)?(?P<arg>.+)$")),
+    ("breakdown", re.compile(r"^(bunu\s+)?(parçala|böl)\s*:?\s*(?P<arg>.+)$")),
+    ("breakdown", re.compile(r"^break\s+(this\s+|it\s+)?down\s*:?\s*(?P<arg>.+)$")),
+    ("done", re.compile(r"\bbitirdim\b|\bbugünlük\s+bu\s+kadar\b|\b(done|finished)\s+for\s+(today|now)\b"
+                        r"|^[iı]'?m\s+(done|finished)$|^that'?s\s+it\s+for\s+today$")),
     ("start", re.compile(r"\bbaşlıyorum\b|\bbaşlayalım\b|\blet'?s\s+(start|begin|get\s+going)\b|\b[iı]'?m\s+starting\b")),  # norm() makes "I" a Turkish "ı"
     ("recall", re.compile(r"\bneredeydi[mk]\b|\bnerede\s+kalmıştı[mk]\b|\bne\s+yapıyordu[mk]\b"
                           r"|\bwhere\s+(was\s+[iı]|were\s+we)\b|\bwhat\s+was\s+[iı]\s+doing\b")),
@@ -40,7 +44,7 @@ REPLIES = {
            "opening": "Opening {}", "no_app": "{} isn't on my app list", "asking": "Asking Claude: {}",
            "no_claude": "I can't reach Claude", "task": "Claude is open, press Enter to send",
            "recall": "Last thing you said: “{}”", "recall_none": "I haven't heard anything yet",
-           "back": "I'm back", "online": "{}\n(Claude, online)",
+           "back": "I'm back", "breaking": "Breaking it down: {}", "no_brain": "I need the question model for that (menu: Question model)", "summary": "Today you worked on:\n{}\nSee you next time!", "bye": "See you next time!", "online": "{}\n(Claude, online)",
            "ptt_set": "Command key: {}", "ptt_same": "Command key not changed", "unmute": "Sound on",
            "cant_open": "I couldn't open {}", "ready": "Ready", "pulling": "Downloading the question model: {}%",
            "pulled": "Question model ready, my questions just got better", "pull_failed": "I couldn't download the question model",
@@ -51,7 +55,7 @@ REPLIES = {
            "opening": "{} açılıyor", "no_app": "{} uygulama listemde yok", "asking": "Claude'a soruyorum: {}",
            "no_claude": "Claude'a ulaşamadım", "task": "Claude açıldı, göndermek için Enter'a bas",
            "recall": "En son şunu söylemiştin: “{}”", "recall_none": "Henüz bir şey duymadım",
-           "back": "Buradayım", "online": "{}\n(Claude, internetten)",
+           "back": "Buradayım", "breaking": "Parçalıyorum: {}", "no_brain": "Bunun için soru modeli lazım (menüde: Soru modeli)", "summary": "Bugün bunlarla uğraştın:\n{}\nGörüşürüz!", "bye": "Görüşürüz!", "online": "{}\n(Claude, internetten)",
            "ptt_set": "Komut tuşu: {}", "ptt_same": "Komut tuşu değişmedi", "unmute": "Sesi geri açtım",
            "cant_open": "{} açılamadı", "ready": "Hazırım", "pulling": "Soru modeli iniyor: %{}",
            "pulled": "Soru modeli hazır, sorularım artık daha iyi", "pull_failed": "Soru modelini indiremedim",
